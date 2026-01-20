@@ -1,3 +1,10 @@
+# Python
 __pycache__/
-*/__pycache__/
-out/*
+*.py[cod]
+*$py.class
+.venv/
+.env
+
+# Project Output
+out/
+*.xlsx
