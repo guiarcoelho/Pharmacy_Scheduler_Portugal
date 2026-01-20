@@ -66,6 +66,12 @@ class Exporter:
         report_solution = solution[solution['in_report_range']].copy()
 
         with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+            # Grid view (requested by user): Rows = Workers, Columns = Dates
+            grid_df = report_solution.pivot(index='worker', columns='date', values='shift')
+            # Fill NaNs with "OFF"
+            grid_df = grid_df.fillna('OFF')
+            grid_df.to_excel(writer, sheet_name='Grid')
+
             # Schedule sheet
             schedule_df = report_solution[[
                 'date', 'day_type', 'shift', 'shift_name', 'worker']].copy()
@@ -123,10 +129,16 @@ class Exporter:
         print("-"*60)
 
         # Format stats for display
-        display_stats = stats[['worker', 'total_hours', 'weekend_minutes',
-                               'sundays_worked', 'full_weekends_off']].copy()
-        display_stats['weekend_hours'] = display_stats['weekend_minutes'] / 60
-        display_stats = display_stats.drop('weekend_minutes', axis=1)
+        cols_to_show = ['worker', 'total_hours', 'days_off', 'sundays_worked', 'full_weekends_off']
+        
+        # Add shift count columns dynamically
+        shift_cols = [c for c in stats.columns if c.startswith('shift_')]
+        cols_to_show.extend(sorted(shift_cols))
+
+        display_stats = stats[cols_to_show].copy()
+
+        # Clean up column names for display
+        display_stats.columns = [c.replace('shift_', '') for c in display_stats.columns]
 
         print(display_stats.to_string(index=False))
 

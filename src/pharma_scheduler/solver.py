@@ -139,8 +139,15 @@ class SchedulingSolver:
             # Sundays worked
             sundays_worked = len(report_schedule[report_schedule['is_sunday']])
 
-            # Shift counts
-            shift_counts = report_schedule['shift'].value_counts().to_dict()
+            # Days worked in report range
+            days_worked = len(report_schedule['date'].unique())
+            total_days_in_report = len(calendar.get_report_dates())
+            days_off = total_days_in_report - days_worked
+
+            # Shift counts - include all shifts defined in shift_manager
+            shift_counts = {s_code: 0 for s_code in model.shift_manager.shifts_by_code.keys()}
+            counts = report_schedule['shift'].value_counts().to_dict()
+            shift_counts.update(counts)
 
             # Weekday minutes by week
             weeks = calendar.get_all_weeks()
@@ -172,6 +179,7 @@ class SchedulingSolver:
                 'worker': w,
                 'total_paid_minutes': total_minutes,
                 'total_hours': total_minutes / 60,
+                'days_off': days_off,
                 'weekend_minutes': weekend_minutes,
                 'saturday_minutes': sat_minutes,
                 'sunday_minutes': sun_minutes,

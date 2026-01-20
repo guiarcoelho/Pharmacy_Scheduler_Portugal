@@ -5,7 +5,7 @@
 # SCHEDULING PERIOD
 # ============================================
 report_start: "2026-02-01"  # First day to schedule
-report_end: "2026-04-30"    # Last day to schedule
+report_end: "2026-02-28"    # Last day to schedule
 buffer_days: 14             # Extra days for Sunday compensation
 
 # ============================================

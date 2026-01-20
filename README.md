@@ -109,11 +109,13 @@ Columns: `date`, `day_type`, `shift_code`, `worker`
 
 ### worker_stats.csv
 Per-worker metrics:
-- Total paid minutes
+- Total paid minutes and hours
+- Total days off (in report range)
 - Weekend/Saturday/Sunday/Holiday minutes
 - Weekday minutes and excess over 40h per week
-- Shift counts by type
+- Detailed shift counts for every shift type (M, I, T, MS, IS, TS, NS, etc.)
 - Sundays worked and compensation triggers
+- Full weekends off (Sat + Sun off)
 
 ## Documentation
 
