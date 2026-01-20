@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pharma-scheduler"
+version = "0.1.0"
+description = "Pharmacy staff scheduling with OR-Tools CP-SAT"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Pharmacy Scheduler"}]
+license = {text = "MIT"}
+dependencies = [
+  "ortools>=9.7",
+  "holidays>=0.45",
+  "pydantic>=2.6",
+  "pandas>=2.1",
+  "pyyaml>=6.0"
+]
+
+[project.optional-dependencies]
+excel = ["openpyxl>=3.1"]
+
+test = [
+  "pytest>=7.4"
+]
+
+[project.scripts]
+pharma-schedule = "pharma_scheduler.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["src"]

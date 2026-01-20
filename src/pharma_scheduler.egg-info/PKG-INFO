@@ -1,3 +1,21 @@
+Metadata-Version: 2.4
+Name: pharma-scheduler
+Version: 0.1.0
+Summary: Pharmacy staff scheduling with OR-Tools CP-SAT
+Author: Pharmacy Scheduler
+License: MIT
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: ortools>=9.7
+Requires-Dist: holidays>=0.45
+Requires-Dist: pydantic>=2.6
+Requires-Dist: pandas>=2.1
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: excel
+Requires-Dist: openpyxl>=3.1; extra == "excel"
+Provides-Extra: test
+Requires-Dist: pytest>=7.4; extra == "test"
+
 # Pharmacy Scheduler (Portugal)
 
 Generate monthly schedules for a Portuguese pharmacy with Google OR-Tools CP-SAT.
