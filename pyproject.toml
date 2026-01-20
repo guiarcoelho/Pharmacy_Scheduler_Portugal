@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pharma-scheduler"
+version = "0.1.0"
+description = "Pharmacy staff scheduling system using Google OR-Tools CP-SAT"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "ortools>=9.8.0",
+    "holidays>=0.40",
+    "pydantic>=2.0.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+pharma-schedule = "pharma_scheduler.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
