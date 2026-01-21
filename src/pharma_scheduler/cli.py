@@ -17,6 +17,7 @@ from .shifts import ShiftManager
 from .model import SchedulingModel
 from .solver import SchedulingSolver
 from .export import Exporter
+from .config_schema import InstanceConfig
 
 
 def load_config(config_path: str) -> dict:
@@ -49,7 +50,9 @@ def load_config(config_path: str) -> dict:
         'shifts': shifts_config['shifts']
     }
 
-    return config
+    # Validate and return as dict (for compatibility)
+    validated_config = InstanceConfig.from_dict(config)
+    return validated_config.to_dict()
 
 
 def cmd_solve(args):

@@ -200,39 +200,46 @@ class SchedulingModel:
                 total = sum(self.x.get((w, d, shift_code), 0)
                             for w in self.workers)
                 
-                # Check for custom rules in instance.yaml (e.g., hard_min, penalty)
+                # Check for custom rules in instance.yaml
                 rules = self.config.get('demand_rules', {}).get(shift_code)
                 
-                # Rules only apply to NORMAL_WEEKDAY for now (mimicking previous hardcoded logic)
                 if rules and day_type == DayType.NORMAL_WEEKDAY:
-                    hard_min = rules.get('hard_min', count)
-                    penalty = rules.get('penalty', 0)
-                    
-                    # Hard constraints
-                    self.model.Add(total >= hard_min)
-                    self.model.Add(total <= count)
-                    
-                    # Soft target (with penalty if total < count)
-                    if penalty > 0 and count > hard_min:
-                        # violation = 1 if total < count
-                        violation = self.model.NewBoolVar(f'low_coverage_{shift_code}_{d}')
-                        
-                        # total < count is equivalent to total == hard_min 
-                        # (assuming target/count is just hard_min + 1, like 1 vs 2)
-                        # To be safe for any range:
-                        self.model.Add(total == count).OnlyEnforceIf(violation.Not())
-                        self.model.Add(total < count).OnlyEnforceIf(violation)
-                        
-                        self.flexible_coverage_violations.append((penalty, violation))
+                    self._apply_demand_rules(d, shift_code, total, count, rules)
                 else:
-                    # Normal Hard Exact coverage
-                    self.model.Add(total == count)
+                    self._apply_standard_coverage(total, count)
 
             # Worker F must work service weekend days
             if is_service_weekend:
-                f_msw = self.x.get(('F', d, 'MSW'), 0)
-                f_fsw = self.x.get(('F', d, 'FSW'), 0)
-                self.model.Add(f_msw + f_fsw == 1)
+                self._apply_service_weekend_rules(d)
+
+    def _apply_demand_rules(self, d, shift_code, total, count, rules):
+        """Apply configurable demand rules (hard min, soft targets)."""
+        hard_min = rules.get('hard_min', count)
+        penalty = rules.get('penalty', 0)
+        
+        # Hard constraints
+        self.model.Add(total >= hard_min)
+        self.model.Add(total <= count)
+        
+        # Soft target (with penalty if total < count)
+        if penalty > 0 and count > hard_min:
+            # violation = 1 if total < count
+            violation = self.model.NewBoolVar(f'low_coverage_{shift_code}_{d}')
+            
+            self.model.Add(total == count).OnlyEnforceIf(violation.Not())
+            self.model.Add(total < count).OnlyEnforceIf(violation)
+            
+            self.flexible_coverage_violations.append((penalty, violation))
+
+    def _apply_standard_coverage(self, total, count):
+        """Apply standard exact coverage constraint."""
+        self.model.Add(total == count)
+
+    def _apply_service_weekend_rules(self, d):
+        """Apply rules for Worker F on service weekends."""
+        f_msw = self.x.get(('F', d, 'MSW'), 0)
+        f_fsw = self.x.get(('F', d, 'FSW'), 0)
+        self.model.Add(f_msw + f_fsw == 1)
 
     def _add_rest_constraints(self):
         """Add daily rest (11h minimum) constraints via forbidden transitions."""
