@@ -60,6 +60,9 @@ class SchedulingModel:
 
         # Soft constraint variables
         self.no_day_off = {}  # no_day_off[w, week]
+        self.sunday_violations = {}  # (w, sunday_date) -> list of BoolVars
+        self.low_m_vars = []  # list of BoolVars for shift M
+        self.low_i_vars = []  # list of BoolVars for shift I
         self.fairness_diffs = {}  # fairness_diffs[metric, w]
 
     def build(self):
@@ -198,6 +201,37 @@ class SchedulingModel:
                     core_msw = sum(self.x.get((w, d, 'MSW'), 0)
                                    for w in self.core_workers)
                     self.model.Add(core_msw == 1)
+                elif day_type == DayType.NORMAL_WEEKDAY and shift_code == 'M':
+                    # Special case: Soft coverage for shift M on normal weekdays
+                    # Hard: 1 <= total <= 2. Soft: target 2.
+                    total = sum(self.x.get((w, d, shift_code), 0)
+                                for w in self.workers)
+                    self.model.Add(total >= 1)
+                    self.model.Add(total <= 2)
+                    
+                    # only_one is true if total == 1
+                    only_one = self.model.NewBoolVar(f'low_coverage_M_{d}')
+                    # if only_one is false (0), total must be 2
+                    self.model.Add(total == 2).OnlyEnforceIf(only_one.Not())
+                    # if only_one is true (1), total must be 1
+                    self.model.Add(total == 1).OnlyEnforceIf(only_one)
+                    
+                    self.low_m_vars.append(only_one)
+                elif day_type == DayType.NORMAL_WEEKDAY and shift_code == 'I':
+                    # Special case: Soft coverage for shift I on normal weekdays
+                    # Hard: 0 <= total <= 1. Soft: target 1.
+                    total = sum(self.x.get((w, d, shift_code), 0)
+                                for w in self.workers)
+                    self.model.Add(total <= 1)
+                    
+                    # uncovered is true if total == 0
+                    uncovered = self.model.NewBoolVar(f'low_coverage_I_{d}')
+                    # if uncovered is false (0), total must be 1
+                    self.model.Add(total == 1).OnlyEnforceIf(uncovered.Not())
+                    # if uncovered is true (1), total must be 0
+                    self.model.Add(total == 0).OnlyEnforceIf(uncovered)
+                    
+                    self.low_i_vars.append(uncovered)
                 else:
                     # Normal coverage
                     total = sum(self.x.get((w, d, shift_code), 0)
@@ -277,7 +311,7 @@ class SchedulingModel:
                     # Must have at least one day off: work <= |C| - 1
                     self.model.Add(total_work <= len(candidates) - 1).OnlyEnforceIf(sun_work)
 
-                # (b) Next weekend fully off
+                # (b) Next weekend fully off (Soft Constraint)
                 try:
                     next_sat, next_sun = self.calendar.get_next_weekend(sun)
                     if next_sat in self.calendar.dates and next_sun in self.calendar.dates:
@@ -285,11 +319,20 @@ class SchedulingModel:
                         next_sun_work = self.works.get((w, next_sun), 0)
                         
                         # Only add constraint if next weekend work vars exist
-                        if isinstance(next_sat_work, cp_model.IntVar):
-                            self.model.Add(next_sat_work == 0).OnlyEnforceIf(sun_work)
-                        if isinstance(next_sun_work, cp_model.IntVar):
-                            self.model.Add(next_sun_work == 0).OnlyEnforceIf(sun_work)
-                except:
+                        if isinstance(next_sat_work, cp_model.IntVar) or isinstance(next_sun_work, cp_model.IntVar):
+                            # Violation occurs if (sunday worked) AND (next_sat OR next_sun worked)
+                            violation = self.model.NewBoolVar(f'sun_next_wknd_violation_{w}_{sun}')
+                            
+                            # violation >= worked_sun + worked_sat - 1
+                            if isinstance(next_sat_work, cp_model.IntVar):
+                                self.model.Add(violation >= sun_work + next_sat_work - 1)
+                            
+                            # violation >= worked_sun + worked_sun_next - 1
+                            if isinstance(next_sun_work, cp_model.IntVar):
+                                self.model.Add(violation >= sun_work + next_sun_work - 1)
+                                
+                            self.sunday_violations[w, sun] = violation
+                except Exception:
                     pass  # Next weekend outside solve range
 
     # ========================================
@@ -420,7 +463,21 @@ class SchedulingModel:
                 objective += obj_config['weekly_rest_penalty'] * \
                     self.no_day_off.get((w, week), 0)
 
-        # 4. Fairness costs
+        # 4. Sunday compensation penalty (Soft Constraint)
+        sunday_penalty = obj_config.get('sunday_next_weekend_penalty', 3000)
+        for violation in self.sunday_violations.values():
+            objective += sunday_penalty * violation
+
+        # 5. Low coverage penalties (Soft Constraints)
+        penalty_m = obj_config.get('penalty_low_coverage_m', 1000)
+        for var in self.low_m_vars:
+            objective += penalty_m * var
+
+        penalty_i = obj_config.get('penalty_low_coverage_i', 1000)
+        for var in self.low_i_vars:
+            objective += penalty_i * var
+
+        # 6. Fairness costs
         for (metric, w), diff in self.fairness_diffs.items():
             objective += diff  # Weight already applied in _add_fairness_for_metric
 

@@ -179,6 +179,7 @@ class SchedulingSolver:
                 'worker': w,
                 'total_paid_minutes': total_minutes,
                 'total_hours': total_minutes / 60,
+                'total_shifts': days_worked,
                 'days_off': days_off,
                 'weekend_minutes': weekend_minutes,
                 'saturday_minutes': sat_minutes,

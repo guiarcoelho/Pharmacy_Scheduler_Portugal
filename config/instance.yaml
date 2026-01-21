@@ -60,6 +60,7 @@ demand:
   
   normal_weekend_or_holiday:
     MW: 1
+    IW: 1
     TW: 1  # Total 2 core workers (3 off)
   
   service_weekday:
@@ -71,6 +72,7 @@ demand:
   service_weekend_or_holiday:
     MSW: 1  # Base MSW from core workers
     ISW: 1
+    FSW: 1
     NSW: 1  # Total 3 core workers (2 off)
     # Note: Worker F provides extra line (MSW or FSW) separately
 
@@ -97,18 +99,25 @@ objective:
   # Work cost weights (per paid minute)
   saturday_weight: 10
   sunday_weight: 14
-  holiday_weight: 16
+  holiday_weight: 10
   
   # Weekday excess over 40h per week (per minute)
   weekday_excess_weight: 1
   
   # Weekly rest violation (per worker-week with no days off)
-  weekly_rest_penalty: 2500
+  weekly_rest_penalty: 1000
+  
+  # Sunday compensation violation (working Sunday then the next weekend)
+  sunday_next_weekend_penalty: 2000
+
+  # Soft coverage violations (penalties for missing target counts)
+  penalty_low_coverage_m: 4000
+  penalty_low_coverage_i: 3500
   
   # Fairness weights
   fairness:
-    weekend_minutes: 2
-    holiday_minutes: 2
+    weekend_minutes: 10
+    holiday_minutes: 5
     weekday_excess: 1
     shift_counts: 50
 
@@ -116,6 +125,6 @@ objective:
 # SOLVER PARAMETERS
 # ============================================
 solver:
-  time_limit_seconds: 300  # 5 minutes
+  time_limit_seconds: 5000
   num_search_workers: 8    # Parallel search threads
   log_search_progress: true

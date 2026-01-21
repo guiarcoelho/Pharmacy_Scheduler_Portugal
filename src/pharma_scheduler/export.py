@@ -129,16 +129,8 @@ class Exporter:
         print("-"*60)
 
         # Format stats for display
-        cols_to_show = ['worker', 'total_hours', 'days_off', 'sundays_worked', 'full_weekends_off']
-        
-        # Add shift count columns dynamically
-        shift_cols = [c for c in stats.columns if c.startswith('shift_')]
-        cols_to_show.extend(sorted(shift_cols))
-
+        cols_to_show = ['worker', 'total_hours', 'total_shifts', 'days_off', 'sundays_worked', 'full_weekends_off']
         display_stats = stats[cols_to_show].copy()
-
-        # Clean up column names for display
-        display_stats.columns = [c.replace('shift_', '') for c in display_stats.columns]
 
         print(display_stats.to_string(index=False))
 
