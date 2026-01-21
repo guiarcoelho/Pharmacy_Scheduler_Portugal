@@ -6,7 +6,7 @@
 # ============================================
 report_start: "2026-06-01"  # First day to schedule
 report_end: "2026-06-30"    # Last day to schedule
-buffer_days: 14             # Extra days for Sunday compensation
+buffer_days: 7             # Extra days for Sunday compensation
 
 # ============================================
 # WORKERS
@@ -68,7 +68,7 @@ demand:
     IS: 1
     TS: 1
     FS: 1
-    NS: 1  # Total 4 core workers (1 off)
+    NS: 1  # Total 5 core workers
   
   service_weekend_or_holiday:
     MSW: 1  # Base MSW from core workers
@@ -77,6 +77,19 @@ demand:
     FSW: 1
     NSW: 1  # Total 3 core workers (2 off)
     # Note: Worker F provides extra line (MSW or FSW) separately
+
+# ============================================
+# DEMAND RULES (Hard limits and soft targets)
+# ============================================
+# For shifts not listed here, coverage is "Hard Exact" (Target = Count).
+demand_rules:
+  M:
+    hard_min: 1      # Absolute minimum required
+    penalty: 4000    # Penalty per day if target not met
+  
+  I:
+    hard_min: 0
+    penalty: 3500
 
 # ============================================
 # CONSTRAINT RULES
@@ -112,9 +125,8 @@ objective:
   # Sunday compensation violation (working Sunday then the next weekend)
   sunday_next_weekend_penalty: 3000
 
-  # Soft coverage violations (penalties for missing target counts)
-  penalty_low_coverage_m: 4000
-  penalty_low_coverage_i: 3500
+  # Preference for Sunday compensation in the same week (Mon-Fri after Sunday)
+  penalty_sunday_comp_delayed: 500
   
   # Fairness weights
   fairness:
@@ -127,6 +139,6 @@ objective:
 # SOLVER PARAMETERS
 # ============================================
 solver:
-  time_limit_seconds: 900
+  time_limit_seconds: 120
   num_search_workers: 12    # Parallel search threads
   log_search_progress: true

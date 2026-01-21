@@ -7,7 +7,7 @@ This module contains:
 - Objective function construction
 """
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, List, Tuple
 from ortools.sat.python import cp_model
 
@@ -63,6 +63,8 @@ class SchedulingModel:
         self.sunday_violations = {}  # (w, sunday_date) -> list of BoolVars
         self.low_m_vars = []  # list of BoolVars for shift M
         self.low_i_vars = []  # list of BoolVars for shift I
+        self.sunday_comp_delayed_vars = []  # list of BoolVars for delayed comp
+        self.flexible_coverage_violations = []  # list of (penalty, BoolVar)
         self.fairness_diffs = {}  # fairness_diffs[metric, w]
 
     def build(self):
@@ -195,46 +197,35 @@ class SchedulingModel:
                                   (is_sat or is_sun))
 
             for shift_code, count in demand.items():
-                if is_service_weekend and shift_code == 'MSW':
-                    # Special case: base MSW from core workers only
-                    core_msw = sum(self.x.get((w, d, 'MSW'), 0)
-                                   for w in self.core_workers)
-                    self.model.Add(core_msw == 1)
-                elif day_type == DayType.NORMAL_WEEKDAY and shift_code == 'M':
-                    # Special case: Soft coverage for shift M on normal weekdays
-                    # Hard: 1 <= total <= 2. Soft: target 2.
-                    total = sum(self.x.get((w, d, shift_code), 0)
-                                for w in self.workers)
-                    # Hard constraint: At least one person must work shift M
-                    self.model.Add(total >= 1)
-                    self.model.Add(total <= 2)
+                total = sum(self.x.get((w, d, shift_code), 0)
+                            for w in self.workers)
+                
+                # Check for custom rules in instance.yaml (e.g., hard_min, penalty)
+                rules = self.config.get('demand_rules', {}).get(shift_code)
+                
+                # Rules only apply to NORMAL_WEEKDAY for now (mimicking previous hardcoded logic)
+                if rules and day_type == DayType.NORMAL_WEEKDAY:
+                    hard_min = rules.get('hard_min', count)
+                    penalty = rules.get('penalty', 0)
                     
-                    only_one = self.model.NewBoolVar(f'low_coverage_M_{d}')
-                    # Simplified channeling: 
-                    # If total=1, only_one=1 (Violation)
-                    # If total=2, only_one=0 (No Violation)
-                    self.model.Add(only_one == 2 - total)
+                    # Hard constraints
+                    self.model.Add(total >= hard_min)
+                    self.model.Add(total <= count)
                     
-                    self.low_m_vars.append(only_one)
-                elif day_type == DayType.NORMAL_WEEKDAY and shift_code == 'I':
-                    # Special case: Soft coverage for shift I on normal weekdays
-                    # Hard: 0 <= total <= 1. Soft: target 1.
-                    total = sum(self.x.get((w, d, shift_code), 0)
-                                for w in self.workers)
-                    # Hard constraint: Shift I is optional (0 or 1 worker)
-                    self.model.Add(total <= 1)
-                    
-                    uncovered = self.model.NewBoolVar(f'low_coverage_I_{d}')
-                    # Simplified channeling:
-                    # If total=0, uncovered=1 (Violation)
-                    # If total=1, uncovered=0 (No Violation)
-                    self.model.Add(uncovered == 1 - total)
-                    
-                    self.low_i_vars.append(uncovered)
+                    # Soft target (with penalty if total < count)
+                    if penalty > 0 and count > hard_min:
+                        # violation = 1 if total < count
+                        violation = self.model.NewBoolVar(f'low_coverage_{shift_code}_{d}')
+                        
+                        # total < count is equivalent to total == hard_min 
+                        # (assuming target/count is just hard_min + 1, like 1 vs 2)
+                        # To be safe for any range:
+                        self.model.Add(total == count).OnlyEnforceIf(violation.Not())
+                        self.model.Add(total < count).OnlyEnforceIf(violation)
+                        
+                        self.flexible_coverage_violations.append((penalty, violation))
                 else:
-                    # Normal coverage
-                    total = sum(self.x.get((w, d, shift_code), 0)
-                                for w in self.workers)
+                    # Normal Hard Exact coverage
                     self.model.Add(total == count)
 
             # Worker F must work service weekend days
@@ -274,47 +265,61 @@ class SchedulingModel:
                 self.model.Add(sat_work == sun_work)
 
     def _add_sunday_compensation(self):
-        """Add Sunday compensation constraints for core workers."""
+        """Add Sunday compensation constraints for core workers.
+
+        Enforces a 10-day window (Week Of + Week After) for compensatory rest.
+        Includes a soft preference for the rest day to occur in the Week Of.
+        """
         if not self.config['constraints'].get('sunday_compensation_enabled', True):
             return
 
-        sundays = self.calendar.get_sundays()
-
         for w in self.core_workers:
-            for sun in sundays:
+            for sun in self.calendar.get_sundays():
                 sun_work = self.works.get((w, sun), None)
-
-                # Skip if not a variable (worker can't work this Sunday)
                 if sun_work is None or not isinstance(sun_work, cp_model.IntVar):
                     continue
 
-                # (a) Extra weekday off in candidate set
+                # 1. Hard Constraint: 10-Day Window (Mon-Fri of Week Of + Week After)
                 candidates = self.calendar.get_sunday_comp_weekdays(sun)
-                if len(candidates) > 0:
+                if candidates:
                     total_work = sum(self.works.get((w, d), 0) for d in candidates)
-                    # Must have at least one day off in the window: work <= |C| - 1
+                    # Must have at least one day off: work <= |C| - 1
                     self.model.Add(total_work <= len(candidates) - 1).OnlyEnforceIf(sun_work)
-                # If candidates is empty (e.g. Sunday at start of month), constraint is skipped.
 
-                # (b) Next weekend fully off (Soft Constraint)
-                try:
-                    next_sat, next_sun = self.calendar.get_next_weekend(sun)
-                    if next_sat in self.calendar.dates and next_sun in self.calendar.dates:
-                        next_sat_work = self.works.get((w, next_sat), 0)
-                        next_sun_work = self.works.get((w, next_sun), 0)
+                    # 2. Soft Preference: Rest day in the SAME week (Monday-Friday of Sunday week)
+                    # We penalize if the worker works ALL 5 days of the Sunday week.
+                    monday_of = self.calendar.get_week_id(sun)
+                    same_week_days = [monday_of + timedelta(days=i) for i in range(5)]
+                    same_week_dates = [d for d in same_week_days if d in self.calendar.dates]
+                    
+                    if len(same_week_dates) == 5:
+                        work_same_week = sum(self.works.get((w, d), 0) for d in same_week_dates)
+                        delayed_var = self.model.NewBoolVar(f'sun_comp_delayed_{w}_{sun}')
                         
-                        # Only add constraint if next weekend work vars exist
-                        # Since Sat/Sun are coupled, we only need to check one (e.g. Sat)
+                        # delayed_var is 1 if (sun_work == 1) AND (work_same_week == 5)
+                        is_full_week = self.model.NewBoolVar(f'full_week_{w}_{sun}')
+                        self.model.Add(work_same_week == 5).OnlyEnforceIf(is_full_week)
+                        self.model.Add(work_same_week < 5).OnlyEnforceIf(is_full_week.Not())
+                        
+                        self.model.AddBoolAnd([is_full_week, sun_work]).OnlyEnforceIf(delayed_var)
+                        self.model.AddBoolOr([is_full_week.Not(), sun_work.Not()]).OnlyEnforceIf(delayed_var.Not())
+                        
+                        self.sunday_comp_delayed_vars.append(delayed_var)
+
+                # 3. Soft Constraint: Next weekend off
+                # Since weekend coupling is enabled, we only need to check Saturday
+                try:
+                    next_sat, _ = self.calendar.get_next_weekend(sun)
+                    if next_sat in self.calendar.dates:
+                        next_sat_work = self.works.get((w, next_sat), 0)
                         if isinstance(next_sat_work, cp_model.IntVar):
-                            # Violation occurs if (sunday worked) AND (next_sat worked)
                             violation = self.model.NewBoolVar(f'sun_next_wknd_violation_{w}_{sun}')
-                            
-                            # violation >= worked_sun + worked_sat - 1
-                            self.model.Add(violation >= sun_work + next_sat_work - 1)
-                                
+                            # violation = sun_work AND next_sat_work
+                            self.model.AddBoolAnd([sun_work, next_sat_work]).OnlyEnforceIf(violation)
+                            self.model.AddBoolOr([sun_work.Not(), next_sat_work.Not()]).OnlyEnforceIf(violation.Not())
                             self.sunday_violations[w, sun] = violation
                 except Exception:
-                    pass  # Next weekend outside solve range
+                    pass
 
     # ========================================
     # SOFT CONSTRAINTS
@@ -444,21 +449,20 @@ class SchedulingModel:
                 objective += obj_config['weekly_rest_penalty'] * \
                     self.no_day_off.get((w, week), 0)
 
-        # 4. Sunday compensation penalty (Soft Constraint)
+        # 4. Sunday compensation penalties (Soft Constraint)
+        # (a) Next weekend violation
         sunday_penalty = obj_config.get('sunday_next_weekend_penalty', 0)
         for violation in self.sunday_violations.values():
             objective += sunday_penalty * violation
 
-        # 5. Low coverage penalties (Soft Constraints)
-        # These penalties encourage the solver to meet target staffing levels
-        # (e.g., 2 people for Shift M, 1 person for Shift I) on standard weekdays.
-        penalty_m = obj_config.get('penalty_low_coverage_m', 0)
-        for var in self.low_m_vars:
-            objective += penalty_m * var
+        # (b) Delayed compensation violation (taken in Week After instead of Week Of)
+        delayed_penalty = obj_config.get('penalty_sunday_comp_delayed', 0)
+        for var in self.sunday_comp_delayed_vars:
+            objective += delayed_penalty * var
 
-        penalty_i = obj_config.get('penalty_low_coverage_i', 0)
-        for var in self.low_i_vars:
-            objective += penalty_i * var
+        # 5. Flexible coverage penalties
+        for penalty, violation in self.flexible_coverage_violations:
+            objective += penalty * violation
 
         # 6. Fairness costs
         # These are mean-scaled absolute deviations to ensure work is distributed

@@ -181,29 +181,22 @@ class Calendar:
     def get_sunday_comp_weekdays(self, sunday: date) -> List[date]:
         """Get candidate weekdays for Sunday compensation.
 
-        - For normal Sundays: The extra day off MUST happen in the same week
-          (Mon-Fri) as the Sunday worked.
-        - For service Sundays: The extra day off can happen in the same week
-          OR the following week (10-day window) to allow for night shift coverage.
+        The extra day off can happen in the same week (Mon-Fri) as the Sunday
+        worked, or in the following week (10-day window total).
 
         Args:
             sunday: The Sunday date
 
         Returns:
-            List of candidate weekday dates (Mon-Fri)
+            List of candidate weekday dates (Mon-Fri) from two weeks
         """
         # 1. Standard Window: Week containing Sunday (Monday-Friday)
         monday_of = self.get_week_id(sunday)
         weekdays = [monday_of + timedelta(days=i) for i in range(5)]
 
-        # 2. Check if this is a Service Sunday (determines if window is extended)
-        day_type = self.get_day_type(sunday)
-        if day_type == DayType.SERVICE_WEEKEND_OR_HOLIDAY:
-            # Extended Window: Add following week for Service Sundays
-            # This is necessary because night workers (Shift NS) work all weekdays
-            # of the service week and cannot take their day off until the next week.
-            monday_next = monday_of + timedelta(days=7)
-            weekdays += [monday_next + timedelta(days=i) for i in range(5)]
+        # 2. Extended Window: Add following week
+        monday_next = monday_of + timedelta(days=7)
+        weekdays += [monday_next + timedelta(days=i) for i in range(5)]
 
         # Filter to dates in solve range and sort
         return [d for d in sorted(set(weekdays)) if d in self.dates]
