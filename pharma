@@ -1,9 +1,0 @@
-#!/bin/bash
-# Check if .venv exists
-if [ ! -d ".venv" ]; then
-    echo "Error: .venv directory not found. Please run the installation steps in TUTORIAL.md first."
-    exit 1
-fi
-
-# Run the unified workflow using the python in the virtual environment
-"./.venv/bin/python3" "run.py" "$@"

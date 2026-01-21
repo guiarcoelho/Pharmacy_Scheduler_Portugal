@@ -379,28 +379,21 @@ This is implicitly enforced by the `works[w, d]` definition.
 
 ### 2. Coverage Constraints
 
-Exact demand must be met for each shift on each day:
+The system satisfies coverage demand for each shift on each day. There are two modes of coverage:
 
+#### (a) Hard Exact Coverage
+For most shifts (e.g., Night Shifts, Service Weekend shifts), the demand must be met exactly:
 ```python
-for day in all_days:
-    day_type = calendar.get_day_type(day)
-    demand = get_demand_for_day_type(day_type)
-    
-    for shift_code, count in demand.items():
-        if is_service_weekend(day) and shift_code == 'MSW':
-            # Special case: base MSW from core workers
-            model.Add(sum(x[w, day, 'MSW'] for w in core_workers) == 1)
-        else:
-            # Normal coverage
-            model.Add(sum(x[w, day, shift_code] for w in eligible_workers) == count)
+model.Add(total_assigned == exact_count)
 ```
 
-**Service weekend extra line**:
-```python
-if is_service_weekend_day(day):
-    # F must work and choose MSW or FSW
-    model.Add(x['F', day, 'MSW'] + x['F', day, 'FSW'] == 1)
-```
+#### (b) Configurable Demand (Flexible Coverage)
+For core weekday shifts (like M or I), the behavior is defined in `instance.yaml` under `demand_rules`:
+- **hard_min**: The absolute minimum workers required (Hard Constraint).
+- **target**: The desired number of workers (from `demand` section).
+- **penalty**: Applied if the assigned number is less than the target (Soft Constraint).
+
+This allows the solver to find a solution even if staffing is tight, prioritising legal rest over non-essential coverage.
 
 ### 3. Eligibility Constraints
 
@@ -482,46 +475,16 @@ Worker F is excluded (must work both service weekend days).
 
 ### 6. Sunday Compensation
 
-For each Sunday and each core worker:
+When a core worker (A-E) works a Sunday, the system triggers two protections to ensure rest and fairness:
 
-```python
-sundays = calendar.get_sundays()
+#### (a) 10-Day Window (1 Day Off)
+The worker must have at least one compensatory day off within a 10-day window centered around the Sunday worked.
+- **Candidate set**: Mon-Fri of the **Week Of** the Sunday + Mon-Fri of the **Week After**.
+- **Rule**: `Total Work Days in 10-day set <= 9` (Hard Constraint).
 
-for worker in core_workers:
-    for sunday in sundays:
-        sun_work = works[worker, sunday]
-        
-        # (a) Extra weekday off in candidate set
-        candidate_weekdays = calendar.get_sunday_comp_weekdays(sunday)
-        # candidate_weekdays = Mon-Fri of week before + Mon-Fri of week of Sunday
-        
-        total_work_in_candidates = sum(works[worker, d] for d in candidate_weekdays)
-        # Must have at least one day off: work <= |C| - 1
-        model.Add(total_work_in_candidates <= len(candidate_weekdays) - 1).OnlyEnforceIf(sun_work)
-        
-        # (b) Next weekend fully off
-        (next_sat, next_sun) = calendar.get_next_weekend(sunday)
-        model.Add(works[worker, next_sat] == 0).OnlyEnforceIf(sun_work)
-        model.Add(works[worker, next_sun] == 0).OnlyEnforceIf(sun_work)
-```
-
-**Candidate weekdays calculation**:
-```python
-def get_sunday_comp_weekdays(sunday):
-    """Get Mon-Fri of week before Sunday + Mon-Fri of week of Sunday."""
-    # Week of Sunday
-    monday_of = sunday - timedelta(days=sunday.weekday())
-    week_of_weekdays = [monday_of + timedelta(days=i) for i in range(5)]  # Mon-Fri
-    
-    # Week before Sunday
-    monday_before = monday_of - timedelta(days=7)
-    week_before_weekdays = [monday_before + timedelta(days=i) for i in range(5)]
-    
-    # Union (typically 10 days, unless Sunday is Monday then 9, etc.)
-    return list(set(week_before_weekdays + week_of_weekdays))
-```
-
-**Important**: Only actual Sundays trigger compensation. Bank holidays that fall on other days do NOT.
+#### (b) Soft Preferences (Optimization)
+1. **Week Of Preference**: The solver prefers to place the day off in the **same week** (Week Of). If the day off is "pushed" to the following week, a `penalty_sunday_comp_delayed` is applied.
+2. **Next Weekend Off**: The solver attempts to keep the **following weekend** fully off. If the worker is assigned to the next weekend, a `sunday_next_weekend_penalty` is applied.
 
 ---
 

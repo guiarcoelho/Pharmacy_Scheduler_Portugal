@@ -1,84 +1,71 @@
-# Pharmacy Scheduler
+# 🏥 Pharmacy Scheduler (Portugal)
 
-A Python-based pharmacy staff scheduling system using Google OR-Tools CP-SAT solver. Generates optimal monthly schedules for Portuguese pharmacies while respecting complex legal constraints, service week patterns, and fairness objectives.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![OR-Tools](https://img.shields.io/badge/Solver-OR--Tools-orange.svg)](https://developers.google.com/optimization)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Features
+**Stop fighting with Excel.** This tool generates optimal monthly schedules for Portuguese pharmacies using Google's CP-SAT solver. It handles the complex labor laws, service week rotations, and fairness distribution that make manual scheduling a nightmare.
 
-- **Complex Constraint Handling**: Daily rest periods (11h), weekend coupling, selective Sunday compensation
-- **Extended Service Week**: Automatic 4-week cycle with 8-day service periods (Monday-to-Monday)
-- **Portuguese Labor Law**: Bank holidays, weekend premiums, 40h weekly limits
-- **Soft Target Optimization**: Configurable penalties for preferred coverage levels (e.g., Target 2 for Shift M)
-- **Fairness Optimization**: Balanced workloads and weekend distribution across core workers
-- **Excel & CSV Export**: Detailed daily schedules and worker metrics
+---
 
-## Installation
+## ✨ Key Features
 
-### Prerequisites
-- Python 3.11 or higher
-- `uv` (recommended) or `pip`
+- **⚖️ Legal Compliance**: Enforces mandatory 11h daily rest periods and Sunday compensation rules.
+- **🔄 Service Weeks**: Handles the unique 8-day Monday-to-Monday service cycles automatically.
+- **🛡️ Portuguese Labor Law**: Built-in support for bank holidays and weekly hour limits (40h).
+- **🤝 Fairness Optimization**: Balances weekend work and holiday shifts across all core staff.
+- **📊 Professional Exports**: Generates color-coded Excel sheets and detailed CSV metrics.
 
-### Setup
+---
+
+## ⚡ Quick Start (3 Minutes)
+
+### 1. Requirements
+- **Python 3.11+**
+- [uv](https://github.com/astral-sh/uv) (recommended for 10x faster setup) or `pip`.
+
+### 2. Installation & Setup
+Clone the repo and install dependencies:
 
 ```bash
-cd Pharmacy_Scheduler_Portugal
+# Using uv (fastest)
+uv venv
+source .venv/bin/activate
+uv pip install -e .
+
+# Using pip
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 ```
 
-## Quick Start
-
-### 1. Unified Run Script
-The easiest way to generate a schedule is using the helper script:
+### 3. Generate Your First Schedule
+Everything is pre-configured for a demo run. Just execute:
 
 ```bash
-./pharma
+python run.py
 ```
 
-This runs the `run.py` script, which:
-1. Validates `config/instance.yaml`
-2. Solves the scheduling problem
-3. Exports results to `out/` as CSV and Excel
+Check the `out/` folder for your `schedule.xlsx`!
 
-### 2. Individual Commands
-You can also use the `pharma-schedule` CLI directly:
+---
 
-```bash
-# Validate config
-pharma-schedule check
+## ⚙️ How to Customize
 
-# Solve and explain
-pharma-schedule solve --out out/
-pharma-schedule explain --date 2026-02-15
-```
+All scheduling logic is controlled via `config/instance.yaml`. Open it to:
+- **Set the Period**: Change `report_start` and `report_end`.
+- **Manage Staff**: Add or remove workers in the `workers` list.
+- **Sync Service Weeks**: Use `anchor_monday` to tell the system when the cycle starts.
+- **Tweak Demand**: Adjust how many people are needed for each shift.
 
-## Scheduling Logic
+---
 
-### Service Weeks
-Every 4th week is a service week. It is an **8-day period** starting Monday morning and ending the following Monday morning. Use `anchor_monday` in `instance.yaml` to sync the cycle.
+## 📖 Deep Dive
 
-### Sunday Compensation (Modified)
-When a core worker (A-E) works a Sunday:
-- **Normal Sunday**: Must have a compensatory day off in the **same week** (Mon-Fri).
-- **Service Sunday**: Can have a rest day in the same week **or the following week** (to allow for night-shift coverage).
-- **Next Weekend Off**: The worker is penalized if they work the following weekend (Soft Constraint).
+For those interested in the underlying algorithms, check the [LOGIC.md](LOGIC.md) file. It explains:
+- How the 10-day Sunday compensation window works.
+- The weighting system for fairness vs. cost.
+- How the 8-day service week rotation is calculated.
 
-### Staffing Targets
-- **Shift M**: Minimum 1 worker (Hard), Target 2 workers (Soft).
-- **Shift I**: Minimum 0 workers (Hard), Target 1 worker (Soft).
-
-## Output Files
-
-Located in the `out/` directory:
-- `schedule.csv`: Daily assignment list.
-- `schedule.xlsx`: Color-coded Excel report with worker statistics.
-- `worker_stats.csv`: Detailed monthly metrics for auditing fairness and hours.
-
-## Troubleshooting
-
-- **Infeasible**: Check if staffing demand exceeds your worker pool (5 core + 1 weekend extra).
-- **Slow Solver**: Increase `time_limit_seconds` or decrease `num_search_workers` if hardware is limited.
-- **Unexpected Shifts**: Use the `explain` command to see exactly how constraints are interacting on a specific date.
-
-## License
-MIT License
+## 📜 License
+Published under the MIT License. Feel free to use and adapt!
