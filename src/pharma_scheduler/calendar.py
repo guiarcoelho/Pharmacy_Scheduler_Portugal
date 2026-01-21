@@ -96,9 +96,11 @@ class Calendar:
         """Check if date falls in a service week.
         
         A service week is defined as the standard 7-day week (Mon-Sun)
-        plus the Monday of the following week.
+        plus the Monday of the following week (the 8th day).
+        This allows the pharmacy's on-service requirements to be covered until
+        the normal rotation resumes on Tuesday morning.
         """
-        # 1. Check if the current week (standard Mon-Sun) is a service week
+        # 1. Check if the current week (standard Mon-Sun) is the configured service week
         monday = d - timedelta(days=d.weekday())
         weeks_since_anchor = (monday - self.anchor_monday).days // 7
         cycle_position = (weeks_since_anchor % self.cycle_weeks) + 1
@@ -107,6 +109,7 @@ class Calendar:
             return True
             
         # 2. Check if today is a Monday and the PREVIOUS week was a service week
+        # (This implements the "plus Monday" requirement)
         if d.weekday() == 0:  # It's Monday
             prev_sunday = d - timedelta(days=1)
             monday_prev = prev_sunday - timedelta(days=prev_sunday.weekday())
@@ -178,8 +181,10 @@ class Calendar:
     def get_sunday_comp_weekdays(self, sunday: date) -> List[date]:
         """Get candidate weekdays for Sunday compensation.
 
-        For normal Sundays, returns Mon-Fri of the same week.
-        For service Sundays, returns Mon-Fri of same week + next week.
+        - For normal Sundays: The extra day off MUST happen in the same week
+          (Mon-Fri) as the Sunday worked.
+        - For service Sundays: The extra day off can happen in the same week
+          OR the following week (10-day window) to allow for night shift coverage.
 
         Args:
             sunday: The Sunday date
@@ -187,18 +192,20 @@ class Calendar:
         Returns:
             List of candidate weekday dates (Mon-Fri)
         """
-        # Week containing Sunday (Standard Window)
+        # 1. Standard Window: Week containing Sunday (Monday-Friday)
         monday_of = self.get_week_id(sunday)
         weekdays = [monday_of + timedelta(days=i) for i in range(5)]
 
-        # Check if this is a Service Sunday
+        # 2. Check if this is a Service Sunday (determines if window is extended)
         day_type = self.get_day_type(sunday)
         if day_type == DayType.SERVICE_WEEKEND_OR_HOLIDAY:
-            # Add following week for Service Sundays (Night Shift flexibility)
-            monday_next = monday_of + timedelta(days=7)
-            weekdays += [monday_next + timedelta(days=i) for i in range(5)]
+            # Extended Window: Add following week for Service Sundays
+            # This is necessary because night workers (Shift NS) work all weekdays
+            # of the service week and cannot take their day off until the next week.
+            tuesday_next = monday_of + timedelta(days=8)
+            weekdays += [tuesday_next + timedelta(days=i) for i in range(4)]
 
-        # Filter to dates in solve range
+        # Filter to dates in solve range and sort
         return [d for d in sorted(set(weekdays)) if d in self.dates]
 
     def get_next_weekend(self, sunday: date) -> Tuple[date, date]:

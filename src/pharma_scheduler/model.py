@@ -205,11 +205,14 @@ class SchedulingModel:
                     # Hard: 1 <= total <= 2. Soft: target 2.
                     total = sum(self.x.get((w, d, shift_code), 0)
                                 for w in self.workers)
+                    # Hard constraint: At least one person must work shift M
                     self.model.Add(total >= 1)
                     self.model.Add(total <= 2)
                     
                     only_one = self.model.NewBoolVar(f'low_coverage_M_{d}')
-                    # simplified channeling: only_one is 1 if total is 1, 0 if total is 2
+                    # Simplified channeling: 
+                    # If total=1, only_one=1 (Violation)
+                    # If total=2, only_one=0 (No Violation)
                     self.model.Add(only_one == 2 - total)
                     
                     self.low_m_vars.append(only_one)
@@ -218,10 +221,13 @@ class SchedulingModel:
                     # Hard: 0 <= total <= 1. Soft: target 1.
                     total = sum(self.x.get((w, d, shift_code), 0)
                                 for w in self.workers)
+                    # Hard constraint: Shift I is optional (0 or 1 worker)
                     self.model.Add(total <= 1)
                     
                     uncovered = self.model.NewBoolVar(f'low_coverage_I_{d}')
-                    # simplified channeling: uncovered is 1 if total is 0, 0 if total is 1
+                    # Simplified channeling:
+                    # If total=0, uncovered=1 (Violation)
+                    # If total=1, uncovered=0 (No Violation)
                     self.model.Add(uncovered == 1 - total)
                     
                     self.low_i_vars.append(uncovered)
@@ -439,22 +445,26 @@ class SchedulingModel:
                     self.no_day_off.get((w, week), 0)
 
         # 4. Sunday compensation penalty (Soft Constraint)
-        sunday_penalty = obj_config.get('sunday_next_weekend_penalty', 3000)
+        sunday_penalty = obj_config.get('sunday_next_weekend_penalty', 0)
         for violation in self.sunday_violations.values():
             objective += sunday_penalty * violation
 
         # 5. Low coverage penalties (Soft Constraints)
-        penalty_m = obj_config.get('penalty_low_coverage_m', 1000)
+        # These penalties encourage the solver to meet target staffing levels
+        # (e.g., 2 people for Shift M, 1 person for Shift I) on standard weekdays.
+        penalty_m = obj_config.get('penalty_low_coverage_m', 0)
         for var in self.low_m_vars:
             objective += penalty_m * var
 
-        penalty_i = obj_config.get('penalty_low_coverage_i', 1000)
+        penalty_i = obj_config.get('penalty_low_coverage_i', 0)
         for var in self.low_i_vars:
             objective += penalty_i * var
 
         # 6. Fairness costs
+        # These are mean-scaled absolute deviations to ensure work is distributed
+        # evenly across all core workers. Weights are built into the diff variables.
         for (metric, w), diff in self.fairness_diffs.items():
-            objective += diff  # Weight already applied in _add_fairness_for_metric
+            objective += diff
 
         self.model.Minimize(objective)
 

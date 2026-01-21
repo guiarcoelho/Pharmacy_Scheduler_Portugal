@@ -99,20 +99,15 @@ Each date is classified into one of four day types:
 
 ### Service Week Calculation
 
-Service weeks follow a repeating 4-week cycle. The algorithm:
+A service week is defined as an **8-day period**:
+1.  The standard Monday-to-Sunday week that falls into the configured cycle position.
+2.  The **Monday of the following week** (the 8th day).
 
-```python
-def is_service_week(date, anchor_monday, cycle_weeks=4, service_week_in_cycle=4):
-    """
-    anchor_monday: 2026-01-05 (must be a Monday)
-    cycle_weeks: 4
-    service_week_in_cycle: 4 (the 4th week in each cycle)
-    """
-    # Get the Monday of the week containing 'date'
-    monday = date - timedelta(days=date.weekday())
-    
-    # Calculate weeks since anchor
-    weeks_since_anchor = (monday - anchor_monday).days // 7
+This extension ensures that on-service coverage (including night shifts) continues until the normal rotation resumes on Tuesday morning.
+
+The implementation in `Calendar._is_service_week` checks:
+-   If the input date $D$ belongs to a Monday-Sunday week that is at the `service_week_in_cycle` position.
+-   OR, if $D$ is a Monday and $D-1$ (the previous Sunday) was in a service week.
     
     # Determine position in cycle (1-indexed)
     cycle_position = (weeks_since_anchor % cycle_weeks) + 1

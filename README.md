@@ -4,164 +4,81 @@ A Python-based pharmacy staff scheduling system using Google OR-Tools CP-SAT sol
 
 ## Features
 
-- **Complex Constraint Handling**: Daily rest periods (11h), weekend coupling, Sunday compensation
-- **Service Week Support**: Automatic 4-week cycle calculation with configurable anchor date
+- **Complex Constraint Handling**: Daily rest periods (11h), weekend coupling, selective Sunday compensation
+- **Extended Service Week**: Automatic 4-week cycle with 8-day service periods (Monday-to-Monday)
 - **Portuguese Labor Law**: Bank holidays, weekend premiums, 40h weekly limits
-- **Fairness Optimization**: Balanced workload distribution across workers
-- **Flexible Configuration**: YAML-based shift and instance configuration
-- **Multiple Output Formats**: CSV and optional Excel exports
+- **Soft Target Optimization**: Configurable penalties for preferred coverage levels (e.g., Target 2 for Shift M)
+- **Fairness Optimization**: Balanced workloads and weekend distribution across core workers
+- **Excel & CSV Export**: Detailed daily schedules and worker metrics
 
 ## Installation
 
 ### Prerequisites
 - Python 3.11 or higher
-- pip or uv package manager
+- `uv` (recommended) or `pip`
 
-### Install from source
+### Setup
 
 ```bash
 cd Pharmacy_Scheduler_Portugal
+python -m venv .venv
+source .venv/bin/activate
 pip install -e .
-```
-
-### Install with development dependencies
-
-```bash
-pip install -e ".[dev]"
 ```
 
 ## Quick Start
 
-### 1. Configure your instance
-
-Edit `config/instance.yaml` to set:
-- Report period (start/end dates)
-- Workers and their groups
-- Service cycle parameters
-- Constraint weights
-
-### 2. Run the solver
+### 1. Unified Run Script
+The easiest way to generate a schedule is using the helper script:
 
 ```bash
-pharma-schedule solve --config config/instance.yaml --out out/
+./pharma
 ```
 
-This will generate:
-- `out/schedule.csv` - Daily shift assignments
-- `out/worker_stats.csv` - Per-worker statistics
+This runs the `run.py` script, which:
+1. Validates `config/instance.yaml`
+2. Solves the scheduling problem
+3. Exports results to `out/` as CSV and Excel
 
-### 3. Check configuration validity
+### 2. Individual Commands
+You can also use the `pharma-schedule` CLI directly:
 
 ```bash
-pharma-schedule check --config config/instance.yaml
+# Validate config
+pharma-schedule check
+
+# Solve and explain
+pharma-schedule solve --out out/
+pharma-schedule explain --date 2026-02-15
 ```
 
-### 4. Explain a specific date
-
-```bash
-pharma-schedule explain --config config/instance.yaml --date 2026-02-15
-```
-
-## Configuration
-
-### Shifts (`config/shifts.yaml`)
-
-Define all shift types with start/end times, clock overrides, and tags. Key shifts:
-- **Normal weekdays**: M, I, T
-- **Normal weekends**: MW, IW, TW
-- **Service weekdays**: MS, IS, TS, NS
-- **Service weekends**: MSW, ISW, TSW, NSW, FSW
-
-### Instance (`config/instance.yaml`)
-
-Configure:
-- **Report period**: Start and end dates for scheduling
-- **Buffer days**: Extension for Sunday compensation (default: 14)
-- **Workers**: Core workers (A-E) and service extra (F)
-- **Service cycle**: Anchor Monday, cycle weeks, service week position
-- **Constraints**: Rest hours, objective weights, fairness parameters
-- **Solver**: Time limits, search workers
-
-## Key Constraints
-
-### Daily Rest
-Minimum 11 consecutive hours between shifts. TS/TSW shifts end at 23:59 for rest calculations.
-
-### Weekend Coupling
-Core workers (A-E) must work both Saturday and Sunday or neither.
-
-### Sunday Compensation
-When a core worker works Sunday:
-1. Must have at least one extra weekday off (Mon-Fri of surrounding weeks)
-2. Must have the following weekend fully off
+## Scheduling Logic
 
 ### Service Weeks
-Every 4th week in the cycle is a service week with extended hours and different shift patterns.
+Every 4th week is a service week. It is an **8-day period** starting Monday morning and ending the following Monday morning. Use `anchor_monday` in `instance.yaml` to sync the cycle.
 
-### Worker Eligibility
-- Only worker E can do night shifts (NS, NSW)
-- Worker F only works service weekend extra line (MSW or FSW)
+### Sunday Compensation (Modified)
+When a core worker (A-E) works a Sunday:
+- **Normal Sunday**: Must have a compensatory day off in the **same week** (Mon-Fri).
+- **Service Sunday**: Can have a rest day in the same week **or the following week** (to allow for night-shift coverage).
+- **Next Weekend Off**: The worker is penalized if they work the following weekend (Soft Constraint).
 
-## Understanding the Output
+### Staffing Targets
+- **Shift M**: Minimum 1 worker (Hard), Target 2 workers (Soft).
+- **Shift I**: Minimum 0 workers (Hard), Target 1 worker (Soft).
 
-### schedule.csv
-Columns: `date`, `day_type`, `shift_code`, `worker`
+## Output Files
 
-### worker_stats.csv
-Per-worker metrics:
-- Total paid minutes and hours
-- Total days off (in report range)
-- Weekend/Saturday/Sunday/Holiday minutes
-- Weekday minutes and excess over 40h per week
-- Detailed shift counts for every shift type (M, I, T, MS, IS, TS, NS, etc.)
-- Sundays worked and compensation triggers
-- Full weekends off (Sat + Sun off)
-
-## Documentation
-
-See `LOGIC.md` for comprehensive explanation of:
-- System architecture and flow
-- Calendar logic and service week calculation
-- All constraints in detail
-- Objective function components
-- CP-SAT model construction
-
-## Testing
-
-Run the test suite:
-
-```bash
-pytest tests/ -v
-```
-
-Run with coverage:
-
-```bash
-pytest tests/ --cov=pharma_scheduler --cov-report=html
-```
+Located in the `out/` directory:
+- `schedule.csv`: Daily assignment list.
+- `schedule.xlsx`: Color-coded Excel report with worker statistics.
+- `worker_stats.csv`: Detailed monthly metrics for auditing fairness and hours.
 
 ## Troubleshooting
 
-### Infeasible solution
-- Check if service weeks align correctly with your date range
-- Verify worker availability matches coverage requirements
-- Review Sunday compensation constraints (may need more buffer days)
-- Use `check` command to validate configuration
-
-### Slow solving
-- Reduce time horizon or increase time limit
-- Adjust fairness weights (lower weights = faster solving)
-- Increase `num_search_workers` in solver config
-
-### Constraint violations
-- Review `worker_stats.csv` for anomalies
-- Use `explain` command to understand specific date assignments
-- Check LOGIC.md for constraint details
+- **Infeasible**: Check if staffing demand exceeds your worker pool (5 core + 1 weekend extra).
+- **Slow Solver**: Increase `time_limit_seconds` or decrease `num_search_workers` if hardware is limited.
+- **Unexpected Shifts**: Use the `explain` command to see exactly how constraints are interacting on a specific date.
 
 ## License
-
-MIT License - see LICENSE file for details
-
-## Support
-
-For issues, questions, or contributions, please open an issue on the project repository.
+MIT License

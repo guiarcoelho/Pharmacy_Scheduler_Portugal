@@ -52,5 +52,10 @@ After running `./pharma`, look in the **`out/`** folder:
 
 ## 💡 5. Pro Tips
 
-- **Infeasibility**: If the script tells you it's "INFEASIBLE", it means your demand is higher than what the workers can handle according to legal rest rules. Try reducing demand or adding workers.
-- **Fairness**: The system automatically balances hours and weekends between workers A, B, C, D, and E.
+- **Infeasibility**: If the script says "INFEASIBLE", it means your staffing demand is too high for the available workers. Try reducing demand or allowing Worker F to cover more shifts.
+- **Fairness**: The system balances everyone's hours, weekends, and unpopular shifts. If one person has an "easier" week, the solver will likely give them a "harder" one later to catch up.
+- **Deep Search**: If the solution isn't "perfect," try increasing `time_limit_seconds` in `config/instance.yaml`.
+- **Advanced CLI**:
+  - `pharma-schedule check`: Detailed validation of your YAML files.
+  - `pharma-schedule explain --date YYYY-MM-DD`: See the exact reasoning and assignments for any day.
+  - `pharma-schedule solve --out out/`: Run the solver directly without the wrapper script.
