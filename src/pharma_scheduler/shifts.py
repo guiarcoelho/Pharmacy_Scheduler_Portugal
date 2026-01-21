@@ -167,7 +167,7 @@ class ShiftManager:
         if worker == 'F':
             is_service_weekend = day_type == DayType.SERVICE_WEEKEND_OR_HOLIDAY
             is_weekend_day = is_saturday or is_sunday
-            return (shift_code in ['MSW', 'ISW', 'TSW', 'FSW'] and
+            return (shift_code in ['MSW', 'FSW'] and
                     is_service_weekend and is_weekend_day)
 
         # Core workers (A-E): all non-night shifts on appropriate day types
