@@ -139,6 +139,6 @@ objective:
 # SOLVER PARAMETERS
 # ============================================
 solver:
-  time_limit_seconds: 120
+  time_limit_seconds: 900
   num_search_workers: 12    # Parallel search threads
   log_search_progress: true
