@@ -202,8 +202,8 @@ class Calendar:
             # Extended Window: Add following week for Service Sundays
             # This is necessary because night workers (Shift NS) work all weekdays
             # of the service week and cannot take their day off until the next week.
-            tuesday_next = monday_of + timedelta(days=8)
-            weekdays += [tuesday_next + timedelta(days=i) for i in range(4)]
+            monday_next = monday_of + timedelta(days=7)
+            weekdays += [monday_next + timedelta(days=i) for i in range(5)]
 
         # Filter to dates in solve range and sort
         return [d for d in sorted(set(weekdays)) if d in self.dates]
