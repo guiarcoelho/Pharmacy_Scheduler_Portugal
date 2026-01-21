@@ -72,6 +72,7 @@ demand:
   service_weekend_or_holiday:
     MSW: 1  # Base MSW from core workers
     ISW: 1
+    TSW: 1
     FSW: 1
     NSW: 1  # Total 3 core workers (2 off)
     # Note: Worker F provides extra line (MSW or FSW) separately
@@ -102,7 +103,7 @@ objective:
   holiday_weight: 10
   
   # Weekday excess over 40h per week (per minute)
-  weekday_excess_weight: 1
+  weekday_excess_weight: 10
   
   # Weekly rest violation (per worker-week with no days off)
   weekly_rest_penalty: 1000

@@ -306,10 +306,11 @@ class SchedulingModel:
 
                 # (a) Extra weekday off in candidate set
                 candidates = self.calendar.get_sunday_comp_weekdays(sun)
-                if candidates:
+                if len(candidates) > 0:
                     total_work = sum(self.works.get((w, d), 0) for d in candidates)
-                    # Must have at least one day off: work <= |C| - 1
+                    # Must have at least one day off in the window: work <= |C| - 1
                     self.model.Add(total_work <= len(candidates) - 1).OnlyEnforceIf(sun_work)
+                # If candidates is empty (e.g. Sunday at start of month), constraint is skipped.
 
                 # (b) Next weekend fully off (Soft Constraint)
                 try:

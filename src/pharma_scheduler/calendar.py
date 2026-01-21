@@ -93,17 +93,29 @@ class Calendar:
                 return DayType.NORMAL_WEEKDAY
 
     def _is_service_week(self, d: date) -> bool:
-        """Check if date falls in a service week."""
-        # Get Monday of the week containing d
+        """Check if date falls in a service week.
+        
+        A service week is defined as the standard 7-day week (Mon-Sun)
+        plus the Monday of the following week.
+        """
+        # 1. Check if the current week (standard Mon-Sun) is a service week
         monday = d - timedelta(days=d.weekday())
-
-        # Calculate weeks since anchor
         weeks_since_anchor = (monday - self.anchor_monday).days // 7
-
-        # Determine position in cycle (1-indexed)
         cycle_position = (weeks_since_anchor % self.cycle_weeks) + 1
-
-        return cycle_position == self.service_week_in_cycle
+        
+        if cycle_position == self.service_week_in_cycle:
+            return True
+            
+        # 2. Check if today is a Monday and the PREVIOUS week was a service week
+        if d.weekday() == 0:  # It's Monday
+            prev_sunday = d - timedelta(days=1)
+            monday_prev = prev_sunday - timedelta(days=prev_sunday.weekday())
+            weeks_prev = (monday_prev - self.anchor_monday).days // 7
+            cycle_prev = (weeks_prev % self.cycle_weeks) + 1
+            if cycle_prev == self.service_week_in_cycle:
+                return True
+                
+        return False
 
     def get_day_type(self, d: date) -> DayType:
         """Get day type for a date."""
@@ -166,26 +178,28 @@ class Calendar:
     def get_sunday_comp_weekdays(self, sunday: date) -> List[date]:
         """Get candidate weekdays for Sunday compensation.
 
-        Returns Mon-Fri of week before Sunday + Mon-Fri of week of Sunday.
+        For normal Sundays, returns Mon-Fri of the same week.
+        For service Sundays, returns Mon-Fri of same week + next week.
 
         Args:
             sunday: The Sunday date
 
         Returns:
-            List of weekday dates (Mon-Fri) from two weeks
+            List of candidate weekday dates (Mon-Fri)
         """
-        # Week containing Sunday
+        # Week containing Sunday (Standard Window)
         monday_of = self.get_week_id(sunday)
-        week_of_weekdays = [monday_of + timedelta(days=i) for i in range(5)]
+        weekdays = [monday_of + timedelta(days=i) for i in range(5)]
 
-        # Week before Sunday
-        monday_before = monday_of - timedelta(days=7)
-        week_before_weekdays = [monday_before +
-                                timedelta(days=i) for i in range(5)]
+        # Check if this is a Service Sunday
+        day_type = self.get_day_type(sunday)
+        if day_type == DayType.SERVICE_WEEKEND_OR_HOLIDAY:
+            # Add following week for Service Sundays (Night Shift flexibility)
+            monday_next = monday_of + timedelta(days=7)
+            weekdays += [monday_next + timedelta(days=i) for i in range(5)]
 
-        # Combine and filter to dates in solve range
-        all_weekdays = week_before_weekdays + week_of_weekdays
-        return [d for d in sorted(set(all_weekdays)) if d in self.dates]
+        # Filter to dates in solve range
+        return [d for d in sorted(set(weekdays)) if d in self.dates]
 
     def get_next_weekend(self, sunday: date) -> Tuple[date, date]:
         """Get next weekend (Saturday, Sunday) after a Sunday.
