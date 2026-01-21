@@ -4,8 +4,8 @@
 # ============================================
 # SCHEDULING PERIOD
 # ============================================
-report_start: "2026-06-01"  # First day to schedule
-report_end: "2026-06-30"    # Last day to schedule
+report_start: "2026-02-01"  # First day to schedule
+report_end: "2026-04-30"    # Last day to schedule
 buffer_days: 7             # Extra days for Sunday compensation
 
 # ============================================
@@ -42,7 +42,7 @@ workers:
 service_cycle:
   anchor_monday: "2026-01-05"  # Must be a Monday
   cycle_weeks: 4               # 4-week repeating cycle
-  service_week_in_cycle: 3     # Week 4 of each cycle is service week
+  service_week_in_cycle: 4     # Week 4 of each cycle is service week
 
 # ============================================
 # LOCALE
@@ -126,7 +126,7 @@ objective:
   sunday_next_weekend_penalty: 3000
 
   # Preference for Sunday compensation in the same week (Mon-Fri after Sunday)
-  penalty_sunday_comp_delayed: 500
+  penalty_sunday_comp_delayed: 800
   
   # Fairness weights
   fairness:

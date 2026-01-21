@@ -286,27 +286,25 @@ class SchedulingModel:
                 if sun_work is None or not isinstance(sun_work, cp_model.IntVar):
                     continue
 
-                # 1. Hard Constraint: 10-Day Window (Mon-Fri of Week Of + Week After)
-                candidates = self.calendar.get_sunday_comp_weekdays(sun)
+                # 1. Hard Constraint: 10-Day Window (Week 1 BEFORE + Week 2 AFTER)
+                week1, week2 = self.calendar.get_sunday_comp_windows(sun)
+                candidates = week1 + week2
+                
                 if candidates:
                     total_work = sum(self.works.get((w, d), 0) for d in candidates)
                     # Must have at least one day off: work <= |C| - 1
                     self.model.Add(total_work <= len(candidates) - 1).OnlyEnforceIf(sun_work)
 
-                    # 2. Soft Preference: Rest day in the SAME week (Monday-Friday of Sunday week)
-                    # We penalize if the worker works ALL 5 days of the Sunday week.
-                    monday_of = self.calendar.get_week_id(sun)
-                    same_week_days = [monday_of + timedelta(days=i) for i in range(5)]
-                    same_week_dates = [d for d in same_week_days if d in self.calendar.dates]
-                    
-                    if len(same_week_dates) == 5:
-                        work_same_week = sum(self.works.get((w, d), 0) for d in same_week_dates)
+                    # 2. Soft Preference: Rest day in Week 1 (Mon-Fri BEFORE/OF Sunday)
+                    # We penalize if the worker works ALL 5 days of Week 1, forcing rest into Week 2.
+                    if len(week1) == 5:
+                        work_week1 = sum(self.works.get((w, d), 0) for d in week1)
                         delayed_var = self.model.NewBoolVar(f'sun_comp_delayed_{w}_{sun}')
                         
-                        # delayed_var is 1 if (sun_work == 1) AND (work_same_week == 5)
-                        is_full_week = self.model.NewBoolVar(f'full_week_{w}_{sun}')
-                        self.model.Add(work_same_week == 5).OnlyEnforceIf(is_full_week)
-                        self.model.Add(work_same_week < 5).OnlyEnforceIf(is_full_week.Not())
+                        # delayed_var is 1 if (sun_work == 1) AND (work_week1 == 5)
+                        is_full_week = self.model.NewBoolVar(f'full_week_1_{w}_{sun}')
+                        self.model.Add(work_week1 == 5).OnlyEnforceIf(is_full_week)
+                        self.model.Add(work_week1 < 5).OnlyEnforceIf(is_full_week.Not())
                         
                         self.model.AddBoolAnd([is_full_week, sun_work]).OnlyEnforceIf(delayed_var)
                         self.model.AddBoolOr([is_full_week.Not(), sun_work.Not()]).OnlyEnforceIf(delayed_var.Not())

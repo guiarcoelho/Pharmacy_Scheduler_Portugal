@@ -178,28 +178,29 @@ class Calendar:
         """Get all Sunday dates in solve range."""
         return [d for d in self.dates if self.is_sunday(d)]
 
-    def get_sunday_comp_weekdays(self, sunday: date) -> List[date]:
+    def get_sunday_comp_windows(self, sunday: date) -> Tuple[List[date], List[date]]:
         """Get candidate weekdays for Sunday compensation.
 
-        The extra day off can happen in the same week (Mon-Fri) as the Sunday
-        worked, or in the following week (10-day window total).
+        The extra day off can happen in the same week (Mon-Fri before Sunday)
+        or in the following week (Mon-Fri after Sunday).
 
         Args:
             sunday: The Sunday date
 
         Returns:
-            List of candidate weekday dates (Mon-Fri) from two weeks
+            Tuple of (week1_days, week2_days)
         """
-        # 1. Standard Window: Week containing Sunday (Monday-Friday)
+        # 1. Week 1: Monday-Friday BEFORE/OF the Sunday
         monday_of = self.get_week_id(sunday)
-        weekdays = [monday_of + timedelta(days=i) for i in range(5)]
+        week1 = [monday_of + timedelta(days=i) for i in range(5)]
+        week1 = [d for d in week1 if d in self.dates]
 
-        # 2. Extended Window: Add following week
+        # 2. Week 2: Monday-Friday AFTER the Sunday
         monday_next = monday_of + timedelta(days=7)
-        weekdays += [monday_next + timedelta(days=i) for i in range(5)]
+        week2 = [monday_next + timedelta(days=i) for i in range(5)]
+        week2 = [d for d in week2 if d in self.dates]
 
-        # Filter to dates in solve range and sort
-        return [d for d in sorted(set(weekdays)) if d in self.dates]
+        return week1, week2
 
     def get_next_weekend(self, sunday: date) -> Tuple[date, date]:
         """Get next weekend (Saturday, Sunday) after a Sunday.
