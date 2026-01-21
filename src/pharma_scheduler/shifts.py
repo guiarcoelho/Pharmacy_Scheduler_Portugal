@@ -127,7 +127,7 @@ class ShiftManager:
 
         # Service weekday: MS, IS, TS, NS
         result[DayType.SERVICE_WEEKDAY] = [
-            s for s in self.shifts if s.code in ['MS', 'IS', 'TS', 'NS']
+            s for s in self.shifts if s.code in ['MS', 'IS', 'TS', 'FS', 'NS']
         ]
 
         # Service weekend/holiday: MSW, ISW, TSW, NSW, FSW

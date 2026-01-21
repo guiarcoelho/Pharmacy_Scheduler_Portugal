@@ -67,6 +67,7 @@ demand:
     MS: 1
     IS: 1
     TS: 1
+    FS: 1
     NS: 1  # Total 4 core workers (1 off)
   
   service_weekend_or_holiday:
@@ -109,7 +110,7 @@ objective:
   weekly_rest_penalty: 1000
   
   # Sunday compensation violation (working Sunday then the next weekend)
-  sunday_next_weekend_penalty: 2000
+  sunday_next_weekend_penalty: 3000
 
   # Soft coverage violations (penalties for missing target counts)
   penalty_low_coverage_m: 4000
@@ -126,6 +127,6 @@ objective:
 # SOLVER PARAMETERS
 # ============================================
 solver:
-  time_limit_seconds: 300
+  time_limit_seconds: 900
   num_search_workers: 12    # Parallel search threads
   log_search_progress: true

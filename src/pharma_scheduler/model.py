@@ -72,7 +72,6 @@ class SchedulingModel:
 
         print("Adding hard constraints...")
         self._add_coverage_constraints()
-        self._add_eligibility_constraints()
         self._add_rest_constraints()
         self._add_weekend_coupling()
         self._add_sunday_compensation()
@@ -209,12 +208,9 @@ class SchedulingModel:
                     self.model.Add(total >= 1)
                     self.model.Add(total <= 2)
                     
-                    # only_one is true if total == 1
                     only_one = self.model.NewBoolVar(f'low_coverage_M_{d}')
-                    # if only_one is false (0), total must be 2
-                    self.model.Add(total == 2).OnlyEnforceIf(only_one.Not())
-                    # if only_one is true (1), total must be 1
-                    self.model.Add(total == 1).OnlyEnforceIf(only_one)
+                    # simplified channeling: only_one is 1 if total is 1, 0 if total is 2
+                    self.model.Add(only_one == 2 - total)
                     
                     self.low_m_vars.append(only_one)
                 elif day_type == DayType.NORMAL_WEEKDAY and shift_code == 'I':
@@ -224,12 +220,9 @@ class SchedulingModel:
                                 for w in self.workers)
                     self.model.Add(total <= 1)
                     
-                    # uncovered is true if total == 0
                     uncovered = self.model.NewBoolVar(f'low_coverage_I_{d}')
-                    # if uncovered is false (0), total must be 1
-                    self.model.Add(total == 1).OnlyEnforceIf(uncovered.Not())
-                    # if uncovered is true (1), total must be 0
-                    self.model.Add(total == 0).OnlyEnforceIf(uncovered)
+                    # simplified channeling: uncovered is 1 if total is 0, 0 if total is 1
+                    self.model.Add(uncovered == 1 - total)
                     
                     self.low_i_vars.append(uncovered)
                 else:
@@ -243,21 +236,6 @@ class SchedulingModel:
                 f_msw = self.x.get(('F', d, 'MSW'), 0)
                 f_fsw = self.x.get(('F', d, 'FSW'), 0)
                 self.model.Add(f_msw + f_fsw == 1)
-
-    def _add_eligibility_constraints(self):
-        """Add worker-shift eligibility constraints."""
-        # Eligibility is enforced by only creating variables for eligible combinations
-        # Force worker F off on non-service-weekend days
-        for d in self.calendar.dates:
-            day_type = self.calendar.get_day_type(d)
-            is_sat = self.calendar.is_saturday(d)
-            is_sun = self.calendar.is_sunday(d)
-            is_service_weekend = (day_type == DayType.SERVICE_WEEKEND_OR_HOLIDAY and
-                                  (is_sat or is_sun))
-
-            if not is_service_weekend:
-                if ('F', d) in self.works:
-                    self.model.Add(self.works['F', d] == 0)
 
     def _add_rest_constraints(self):
         """Add daily rest (11h minimum) constraints via forbidden transitions."""
@@ -320,17 +298,13 @@ class SchedulingModel:
                         next_sun_work = self.works.get((w, next_sun), 0)
                         
                         # Only add constraint if next weekend work vars exist
-                        if isinstance(next_sat_work, cp_model.IntVar) or isinstance(next_sun_work, cp_model.IntVar):
-                            # Violation occurs if (sunday worked) AND (next_sat OR next_sun worked)
+                        # Since Sat/Sun are coupled, we only need to check one (e.g. Sat)
+                        if isinstance(next_sat_work, cp_model.IntVar):
+                            # Violation occurs if (sunday worked) AND (next_sat worked)
                             violation = self.model.NewBoolVar(f'sun_next_wknd_violation_{w}_{sun}')
                             
                             # violation >= worked_sun + worked_sat - 1
-                            if isinstance(next_sat_work, cp_model.IntVar):
-                                self.model.Add(violation >= sun_work + next_sat_work - 1)
-                            
-                            # violation >= worked_sun + worked_sun_next - 1
-                            if isinstance(next_sun_work, cp_model.IntVar):
-                                self.model.Add(violation >= sun_work + next_sun_work - 1)
+                            self.model.Add(violation >= sun_work + next_sat_work - 1)
                                 
                             self.sunday_violations[w, sun] = violation
                 except Exception:

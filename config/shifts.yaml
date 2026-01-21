@@ -55,8 +55,8 @@ shifts:
   
   - code: IS
     name: "Intermédio Serviço"
-    start: "13:00"
-    end: "22:00"
+    start: "10:00"
+    end: "19:00"
     tags: [weekday, service]
   
   - code: TS
@@ -64,6 +64,12 @@ shifts:
     start: "16:00"
     end: "00:00"  # Paid until midnight
     clock_end: "23:59"  # For rest calculations
+    tags: [weekday, service, late]
+
+  - code: FS
+    name: "Tarde Extra Serviço"
+    start: "13:00"
+    end: "22:00"
     tags: [weekday, service, late]
   
   - code: NS
