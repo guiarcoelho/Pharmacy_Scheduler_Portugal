@@ -42,7 +42,7 @@ workers:
 service_cycle:
   anchor_monday: "2026-01-05"  # Must be a Monday
   cycle_weeks: 4               # 4-week repeating cycle
-  service_week_in_cycle: 4     # Week 4 of each cycle is service week
+  service_week_in_cycle: 3     # Week 4 of each cycle is service week
 
 # ============================================
 # LOCALE
@@ -125,6 +125,6 @@ objective:
 # SOLVER PARAMETERS
 # ============================================
 solver:
-  time_limit_seconds: 5000
-  num_search_workers: 8    # Parallel search threads
+  time_limit_seconds: 300
+  num_search_workers: 12    # Parallel search threads
   log_search_progress: true
