@@ -5,7 +5,7 @@
 # SCHEDULING PERIOD
 # ============================================
 report_start: "2026-02-01"  # First day to schedule
-report_end: "2026-04-30"    # Last day to schedule
+report_end: "2026-02-28"    # Last day to schedule
 buffer_days: 7             # Extra days for Sunday compensation
 
 # ============================================
@@ -106,6 +106,9 @@ constraints:
   
   # Weekly rest soft constraint
   weekly_rest_penalty_enabled: true
+  
+  # Speed knob: breaks symmetry among interchangeable core workers (A-D)
+  symmetry_breaking_enabled: true
 
 # ============================================
 # OBJECTIVE WEIGHTS
@@ -139,6 +142,10 @@ objective:
 # SOLVER PARAMETERS
 # ============================================
 solver:
-  time_limit_seconds: 900
-  num_search_workers: 12    # Parallel search threads
+  time_limit_seconds: 120
+  num_search_workers: 8    # Parallel search threads
   log_search_progress: true
+  # Debug knob: print CP-SAT ResponseStats() after Solve()
+  print_response_stats: true
+  # Repro knob: fix solver randomness (try different seeds for better solutions)
+  random_seed: 123

@@ -32,6 +32,7 @@ class ConstraintsConfig:
     weekend_coupling_enabled: bool = True
     sunday_compensation_enabled: bool = True
     weekly_rest_penalty_enabled: bool = True
+    symmetry_breaking_enabled: bool = True
 
 @dataclass
 class FairnessConfig:
@@ -60,6 +61,8 @@ class SolverConfig:
     time_limit_seconds: int = 300
     num_search_workers: int = 8
     log_search_progress: bool = True
+    print_response_stats: bool = False
+    random_seed: Optional[int] = None
 
 @dataclass
 class InstanceConfig:

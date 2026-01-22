@@ -115,6 +115,10 @@ class SchedulingSolver:
             'num_search_workers', 8)
         self.solver.parameters.log_search_progress = solver_config.get(
             'log_search_progress', True)
+        self.print_response_stats = solver_config.get('print_response_stats', False)
+        random_seed = solver_config.get('random_seed')
+        if random_seed is not None:
+            self.solver.parameters.random_seed = int(random_seed)
 
         self.status = None
         self.solution = None
@@ -131,6 +135,9 @@ class SchedulingSolver:
 
         model = self.scheduling_model.get_model()
         self.status = self.solver.Solve(model)
+        if self.print_response_stats:
+            print("\nSolver stats:")
+            print(self.solver.ResponseStats())
 
         if self.status == cp_model.OPTIMAL:
             print(f"✓ Optimal solution found!")
@@ -153,37 +160,6 @@ class SchedulingSolver:
             print(f"✗ Solver status: {self.solver.StatusName(self.status)}")
             return False
 
-    def _extract_solution(self):
-        """Extract solution from solver."""
-        model = self.scheduling_model
-        calendar = model.calendar
-        shift_manager = model.shift_manager
-
-        # Extract assignments
-        assignments = []
-        for (w, d, s), var in model.x.items():
-            if self.solver.Value(var) == 1:
-                shift = shift_manager.shifts_by_code[s]
-                assignments.append({
-                    'date': d,
-                    'worker': w,
-                    'shift': s,
-                    'shift_name': shift.name,
-                    'day_type': calendar.get_day_type(d).value,
-                    'paid_minutes': shift.paid_minutes,
-                    'is_saturday': calendar.is_saturday(d),
-                    'is_sunday': calendar.is_sunday(d),
-                    'is_holiday': calendar.is_holiday(d),
-                    'is_weekend': calendar.is_weekend(d),
-                    'in_report_range': calendar.is_in_report_range(d)
-                })
-
-        self.solution = pd.DataFrame(assignments)
-
-        # Calculate statistics
-        # Validate configuration if available (already done in CLI but good practice)
-        # self.stats_calculator = StatisticsCalculator(self.scheduling_model)
-        
     def _extract_solution(self):
         """Extract solution from solver."""
         model = self.scheduling_model

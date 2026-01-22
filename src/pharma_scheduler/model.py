@@ -66,11 +66,16 @@ class SchedulingModel:
         self.sunday_comp_delayed_vars = []  # list of BoolVars for delayed comp
         self.flexible_coverage_violations = []  # list of (penalty, BoolVar)
         self.fairness_diffs = {}  # fairness_diffs[metric, w]
+        self.fairness_diff_weights = {}  # fairness_diff_weights[metric, w] -> int
+
+        # Internal indices to speed up model building
+        self._shift_codes_by_worker_day = {}  # (w, d) -> list[str]
 
     def build(self):
         """Build complete CP-SAT model."""
         print("Creating variables...")
         self._create_variables()
+        self._add_symmetry_breaking()
 
         print("Adding hard constraints...")
         self._add_coverage_constraints()
@@ -93,6 +98,10 @@ class SchedulingModel:
 
     def _create_variables(self):
         """Create all CP-SAT variables."""
+        shift_paid_minutes = {
+            s.code: s.paid_minutes for s in self.shift_manager.shifts
+        }
+
         # Primary assignment variables
         for w in self.workers:
             for d in self.calendar.dates:
@@ -101,18 +110,20 @@ class SchedulingModel:
                     day_type)
                 is_sat = self.calendar.is_saturday(d)
                 is_sun = self.calendar.is_sunday(d)
+                shift_codes = []
 
                 for shift in allowed_shifts:
                     if self.shift_manager.is_eligible(w, shift.code, day_type, is_sat, is_sun):
                         self.x[w, d, shift.code] = self.model.NewBoolVar(
                             f'x_{w}_{d}_{shift.code}'
                         )
+                        shift_codes.append(shift.code)
+                self._shift_codes_by_worker_day[w, d] = shift_codes
 
         # Works indicator: at most one shift per day
         for w in self.workers:
             for d in self.calendar.dates:
-                shifts_on_day = [s for (worker, day, s) in self.x.keys()
-                                 if worker == w and day == d]
+                shifts_on_day = self._shift_codes_by_worker_day.get((w, d), [])
                 if shifts_on_day:
                     self.works[w, d] = self.model.NewBoolVar(f'works_{w}_{d}')
                     self.model.Add(
@@ -124,12 +135,10 @@ class SchedulingModel:
         # Paid minutes by worker-day
         for w in self.workers:
             for d in self.calendar.dates:
-                shifts_on_day = [(s, self.shift_manager.shifts_by_code[s].paid_minutes)
-                                 for (worker, day, s) in self.x.keys()
-                                 if worker == w and day == d]
-                if shifts_on_day:
+                shift_codes = self._shift_codes_by_worker_day.get((w, d), [])
+                if shift_codes:
                     self.paid_minutes[w, d] = sum(
-                        self.x[w, d, s] * minutes for s, minutes in shifts_on_day
+                        self.x[w, d, s] * shift_paid_minutes[s] for s in shift_codes
                     )
                 else:
                     self.paid_minutes[w, d] = 0
@@ -140,14 +149,11 @@ class SchedulingModel:
     def _create_aggregated_metrics(self):
         """Create aggregated metric variables."""
         # Weekend/holiday minutes
-        for w in self.workers:
-            sat_days = [
-                d for d in self.calendar.dates if self.calendar.is_saturday(d)]
-            sun_days = [
-                d for d in self.calendar.dates if self.calendar.is_sunday(d)]
-            holiday_days = [
-                d for d in self.calendar.dates if self.calendar.is_holiday(d)]
+        sat_days = [d for d in self.calendar.dates if self.calendar.is_saturday(d)]
+        sun_days = [d for d in self.calendar.dates if self.calendar.is_sunday(d)]
+        holiday_days = [d for d in self.calendar.dates if self.calendar.is_holiday(d)]
 
+        for w in self.workers:
             self.sat_minutes[w] = sum(
                 self.paid_minutes.get((w, d), 0) for d in sat_days)
             self.sun_minutes[w] = sum(
@@ -158,6 +164,10 @@ class SchedulingModel:
 
         # Weekday minutes and excess over 40h per week
         weeks = self.calendar.get_all_weeks()
+        max_paid_minutes = max((s.paid_minutes for s in self.shift_manager.shifts), default=0)
+        max_weekday_minutes = max_paid_minutes * 5
+        max_excess = max(0, max_weekday_minutes - 2400)
+
         for w in self.core_workers:
             for week in weeks:
                 weekdays = [d for d in self.calendar.get_days_in_week(week)
@@ -169,10 +179,11 @@ class SchedulingModel:
 
                 # Excess over 40h (2400 minutes)
                 excess_var = self.model.NewIntVar(
-                    0, 10000, f'excess40_{w}_{week}')
-                self.model.Add(
-                    excess_var >= self.weekday_minutes[w, week] - 2400)
-                self.model.Add(excess_var >= 0)
+                    0, max_excess, f'excess40_{w}_{week}')
+                self.model.AddMaxEquality(
+                    excess_var,
+                    [0, self.weekday_minutes[w, week] - 2400],
+                )
                 self.excess40[w, week] = excess_var
 
         # Shift counts
@@ -414,6 +425,29 @@ class SchedulingModel:
                 0, 10000000, f'fairness_{name}_{w}')
             self.model.AddAbsEquality(diff_var, n * metrics[w] - total)
             self.fairness_diffs[name, w] = diff_var
+            self.fairness_diff_weights[name, w] = weight
+
+    def _add_symmetry_breaking(self):
+        """Add light symmetry breaking for interchangeable core workers."""
+        if not self.config['constraints'].get('symmetry_breaking_enabled', True):
+            return
+
+        worker_entries = self.config.get('workers', [])
+        pure_core_workers = [
+            w['id'] for w in worker_entries
+            if set(w.get('groups', [])) == {'core'}
+        ]
+        if len(pure_core_workers) < 2:
+            return
+
+        report_dates = self.calendar.get_report_dates()
+        total_report_minutes = {
+            w: sum(self.paid_minutes.get((w, d), 0) for d in report_dates)
+            for w in pure_core_workers
+        }
+
+        for left, right in zip(pure_core_workers, pure_core_workers[1:]):
+            self.model.Add(total_report_minutes[left] >= total_report_minutes[right])
 
     # ========================================
     # OBJECTIVE FUNCTION
@@ -473,7 +507,7 @@ class SchedulingModel:
         # These are mean-scaled absolute deviations to ensure work is distributed
         # evenly across all core workers. Weights are built into the diff variables.
         for (metric, w), diff in self.fairness_diffs.items():
-            objective += diff
+            objective += self.fairness_diff_weights.get((metric, w), 1) * diff
 
         self.model.Minimize(objective)
 
