@@ -13,7 +13,7 @@ shifts:
     name: "Manhã (Morning)"
     start: "08:30"
     end: "17:30"
-    labels: [weekday, normal, soft_fill]
+    labels: [weekday, normal, soft_fill, fairness]
     coverage: { min: 1, max: 2 }
     soft_fill_penalty: 3500
     allowed_when:
@@ -26,7 +26,7 @@ shifts:
     name: "Intermédio (Intermediate)"
     start: "10:30"
     end: "19:30"
-    labels: [weekday, normal, soft_fill]
+    labels: [weekday, normal, soft_fill, fairness]
     coverage: { min: 0, max: 1 }
     soft_fill_penalty: 3500
     allowed_when:
@@ -39,7 +39,7 @@ shifts:
     name: "Tarde (Afternoon)"
     start: "11:30"
     end: "20:30"
-    labels: [weekday, normal]
+    labels: [weekday, normal, fairness]
     coverage: { min: 2, max: 2 }
     allowed_when:
       and:
@@ -52,7 +52,7 @@ shifts:
     name: "Manhã Weekend"
     start: "08:30"
     end: "15:30"
-    labels: [weekend, normal]
+    labels: [weekend, normal, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -66,7 +66,7 @@ shifts:
     name: "Intermédio Weekend"
     start: "10:30"
     end: "17:30"
-    labels: [weekend, normal]
+    labels: [weekend, normal, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -80,7 +80,7 @@ shifts:
     name: "Tarde Weekend"
     start: "16:30"
     end: "20:30"
-    labels: [weekend, normal]
+    labels: [weekend, normal, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -95,7 +95,7 @@ shifts:
     name: "Manhã Serviço"
     start: "09:00"
     end: "18:00"
-    labels: [weekday, service]
+    labels: [weekday, service, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -107,7 +107,7 @@ shifts:
     name: "Intermédio Serviço"
     start: "10:00"
     end: "19:00"
-    labels: [weekday, service]
+    labels: [weekday, service, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -120,7 +120,7 @@ shifts:
     start: "16:00"
     end: "00:00"
     clock_end: "23:59"
-    labels: [weekday, service, late]
+    labels: [weekday, service, late, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -132,7 +132,7 @@ shifts:
     name: "Tarde Extra Serviço"
     start: "13:00"
     end: "22:00"
-    labels: [weekday, service, late]
+    labels: [weekday, service, late, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -144,7 +144,7 @@ shifts:
     name: "Noite Serviço"
     start: "00:00"
     end: "08:30"
-    labels: [weekday, service, night]
+    labels: [weekday, service, night, fairness]
     coverage: { min: 1, max: 1 }
     requires_worker_caps: [night_capable]
     allowed_when:
@@ -158,7 +158,7 @@ shifts:
     name: "Manhã Serviço Weekend"
     start: "08:30"
     end: "13:30"
-    labels: [weekend, service]
+    labels: [weekend, service, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -172,7 +172,7 @@ shifts:
     name: "Intermédio Serviço Weekend"
     start: "14:00"
     end: "22:00"
-    labels: [weekend, service]
+    labels: [weekend, service, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -187,7 +187,7 @@ shifts:
     start: "16:00"
     end: "00:00"
     clock_end: "23:59"
-    labels: [weekend, service, late]
+    labels: [weekend, service, late, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:
@@ -201,7 +201,7 @@ shifts:
     name: "Noite Serviço Weekend"
     start: "00:00"
     end: "08:30"
-    labels: [weekend, service, night]
+    labels: [weekend, service, night, fairness]
     coverage: { min: 1, max: 1 }
     requires_worker_caps: [night_capable]
     allowed_when:
@@ -216,7 +216,7 @@ shifts:
     name: "Fim de Semana Serviço (Extra)"
     start: "09:30"
     end: "16:30"
-    labels: [weekend, service, extra]
+    labels: [weekend, service, extra, fairness]
     coverage: { min: 1, max: 1 }
     allowed_when:
       and:

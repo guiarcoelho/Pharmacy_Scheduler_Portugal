@@ -217,7 +217,28 @@ class RulebookCompiler:
         items = self._get_rulebook_path(path)
         if not isinstance(items, list):
             raise ValueError(f"list iterator expects list at '{path}'")
-        return items
+        expanded: List[dict] = []
+        for item in items:
+            if isinstance(item, dict) and "per_shift" in item:
+                expanded.extend(self._expand_per_shift_item(item))
+            else:
+                expanded.append(item)
+        return expanded
+
+    def _expand_per_shift_item(self, item: dict) -> List[dict]:
+        per_shift = item.get("per_shift") or {}
+        where = per_shift.get("where")
+        expanded: List[dict] = []
+        for shift in self._shift_items:
+            if where and not evaluate(where, {"shift": shift, "this": shift}):
+                continue
+            new_item = dict(item)
+            new_item.pop("per_shift", None)
+            new_item["shift"] = shift
+            if new_item.get("id") and "code" in shift:
+                new_item["id"] = f"{new_item['id']}:{shift['code']}"
+            expanded.append(new_item)
+        return expanded
 
     def _get_shift_transitions(self, min_rest_hours: int) -> List[dict]:
         if min_rest_hours not in self._transition_cache:

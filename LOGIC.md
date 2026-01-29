@@ -167,3 +167,101 @@ Rules are evaluated with a context dictionary that may include:
 - **Loops**: `for_each` over `day`, `week`, `worker`, `shift`, `shift_transition`, and `list` (from top-level lists like `fairness_items`).
 - **Ranges**: `day_range` with windows/filters and `range_size`.
 - **Meta**: `eval` (evaluate an expression stored in config) and `with` (temporary variable bindings).
+
+## 8) Configuration files (how to build each one)
+
+### `config/scenario.yaml` (manifest)
+Defines where each scenario file lives. Paths are relative to this file.
+
+Key fields:
+- `calendar`, `special_days`, `workers`, `shifts`, `constraints`, `solver`
+
+### `calendar.yaml`
+Defines the report horizon and holiday settings.
+
+Key fields:
+- `report_start`, `report_end` (inclusive)
+- `buffer_days` (extra days for rules like Sunday compensation)
+- `holiday_locale` (e.g., `PT`)
+- Optional generator config for special days (if you use `scripts/generate_special_days.py`)
+
+### `special_days.yaml`
+Defines tagged date ranges (e.g., `service`).
+
+Each entry has:
+- `name`
+- `periods` list: `{ start: YYYY-MM-DD, days: N }`
+
+These tags appear in JSONLogic as `day.special_tags`.
+
+### `workers.yaml`
+Defines workers, groups, and optional eligibility filters.
+
+Each worker:
+- `id`, `name`
+- `groups` (for rules like “core”)
+- `caps` (capabilities used by shifts)
+- optional `allowed_when` JSONLogic (worker-day-shift eligibility)
+
+### `shifts.yaml`
+Defines shifts, their time windows, coverage, and existence rules.
+
+Each shift:
+- `code`, `name`, `start`, `end`
+- optional `clock_end` (rest calculations)
+- `coverage: { min, max }`
+- `labels` (used for filters, fairness targeting, soft-fill selection)
+- optional `soft_fill_penalty`
+- `allowed_when` JSONLogic (when the shift exists)
+- optional `requires_worker_caps`
+
+### `constraints.yaml` (primitive rulebook)
+This is the **most important file**. It defines all scheduling rules.
+
+Top-level structure:
+- `rulebook_version`
+- `fairness_items` (optional list of reusable metrics)
+- `rules` (actual constraints / penalties)
+
+#### `fairness_items` (reusable metrics)
+Each item defines a metric expression and a penalty. The fairness rule can loop
+over this list and apply the same “balance across workers” formula.
+
+You can also use **per-shift expansion**:
+
+```yaml
+fairness_items:
+  - id: shift_counts
+    per_shift:
+      where: { "in": ["fairness", { "var": "shift.labels" }] }
+    metric:
+      count_assignments:
+        select:
+          dims: { worker: { from: "i.worker" } }
+          where:
+            "==": [ { "var": "shift.code" }, { "var": "i.shift.code" } ]
+    penalty_per_unit: 50
+```
+
+This expands into one fairness item per shift whose labels match the filter.
+
+#### `rules`
+Each rule has:
+- `id`, optional `doc`
+- `for_each` loops (day/worker/shift/week/list)
+- `let` intermediate expressions
+- `hard` constraints (`lhs op rhs`)
+- `soft` penalties (`units * penalty_per_unit`)
+
+The **fairness rule** is a good example of advanced usage:
+- It loops over `fairness_items`
+- Evaluates each metric with `eval`
+- Uses `with` to bind the worker or shift temporarily
+- Penalizes deviation from the group mean
+
+### `solver.yaml`
+Controls CP-SAT runtime behavior:
+- `time_limit_seconds`
+- `num_search_workers`
+- `log_search_progress`
+- `print_response_stats`

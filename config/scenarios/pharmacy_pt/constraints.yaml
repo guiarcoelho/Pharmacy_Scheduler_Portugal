@@ -39,121 +39,16 @@ fairness_items:
               - { const: 2400 }
     penalty_per_unit: 1
 
-  - id: shift_count_M
+  - id: shift_counts
+    per_shift:
+      where: { "in": ["fairness", { "var": "shift.labels" }] }
     metric:
       count_assignments:
         select:
           dims:
             worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "M" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_I
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "I" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_T
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "T" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_MW
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "MW" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_IW
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "IW" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_TW
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "TW" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_MS
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "MS" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_IS
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "IS" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_TS
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "TS" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_MSW
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "MSW" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_ISW
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "ISW" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_TSW
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "TSW" ] }
-    penalty_per_unit: 50
-
-  - id: shift_count_FSW
-    metric:
-      count_assignments:
-        select:
-          dims:
-            worker: { from: "i.worker" }
-          where: { "==": [ { "var": "shift.code" }, "FSW" ] }
+          where:
+            "==": [ { "var": "shift.code" }, { "var": "i.shift.code" } ]
     penalty_per_unit: 50
 
 rules:
@@ -503,7 +398,11 @@ rules:
         where: { "in": ["core", { "var": "this.groups" }] }
     let:
       metric:
-        eval: { var: "i.fairness.metric" }
+        with:
+          bindings:
+            shift: "i.fairness.shift"
+          expr:
+            eval: { var: "i.fairness.metric" }
       total_metric:
         sum_over:
           iter:
@@ -514,6 +413,7 @@ rules:
             with:
               bindings:
                 worker: "i.w"
+                shift: "i.fairness.shift"
               expr:
                 eval: { var: "i.fairness.metric" }
       n_workers:
