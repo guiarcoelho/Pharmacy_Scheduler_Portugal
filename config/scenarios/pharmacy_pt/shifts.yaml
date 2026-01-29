@@ -14,7 +14,7 @@ shifts:
     start: "08:30"
     end: "17:30"
     labels: [weekday, normal]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 2 }
     allowed_when:
       and:
         - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
