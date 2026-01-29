@@ -5,16 +5,17 @@ shifts:
   # - JSONLogic `allowed_when` that decides if the shift exists on a given day
   # - optional `requires_worker_caps` matched against worker `caps`
   #
-  # Coverage softness is NOT a shift property. Soft-vs-hard is defined in the
-  # rulebook (`constraints.yaml`) by adding a penalty per missing worker.
+  # Coverage softness can be configured per shift (e.g., soft-fill to max)
+  # via `labels: [soft_fill]` and an optional `soft_fill_penalty`.
   #
   # Normal weekday shifts
   - code: M
     name: "Manhã (Morning)"
     start: "08:30"
     end: "17:30"
-    labels: [weekday, normal]
+    labels: [weekday, normal, soft_fill]
     coverage: { min: 1, max: 2 }
+    soft_fill_penalty: 3500
     allowed_when:
       and:
         - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
@@ -25,8 +26,9 @@ shifts:
     name: "Intermédio (Intermediate)"
     start: "10:30"
     end: "19:30"
-    labels: [weekday, normal]
+    labels: [weekday, normal, soft_fill]
     coverage: { min: 0, max: 1 }
+    soft_fill_penalty: 3500
     allowed_when:
       and:
         - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }

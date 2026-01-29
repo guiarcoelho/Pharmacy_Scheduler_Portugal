@@ -163,6 +163,7 @@ class Calendar:
             "is_sunday": self.is_sunday(d),
             "special_tags": sorted(self.get_special_tags(d)),
             "in_report_range": self.is_in_report_range(d),
+            "has_next_day": d + timedelta(days=1) in self.dates,
         }
 
     def __len__(self) -> int:

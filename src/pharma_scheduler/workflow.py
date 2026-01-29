@@ -145,7 +145,7 @@ def solve(
         calendar=calendar,
         shift_manager=shift_manager,
         workers=workers,
-        rulebook=config["constraints"].get("constraints", []),
+        rulebook=config["constraints"].get("rules", []),
     )
     model.build()
 

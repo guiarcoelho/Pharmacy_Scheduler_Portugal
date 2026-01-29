@@ -25,6 +25,7 @@ class Shift:
     tags: Set[str]
     coverage_min: int
     coverage_max: int
+    soft_fill_penalty: int
     allowed_when: dict | None
     requires_worker_caps: Set[str]
 
@@ -89,6 +90,7 @@ class ShiftManager:
                 tags=set(s.get('labels', [])),
                 coverage_min=int(s['coverage']['min']),
                 coverage_max=int(s['coverage']['max']),
+                soft_fill_penalty=int(s.get('soft_fill_penalty', 0)),
                 allowed_when=s.get('allowed_when'),
                 requires_worker_caps=set(s.get('requires_worker_caps', [])),
             )
@@ -107,6 +109,7 @@ class ShiftManager:
             "code": shift.code,
             "labels": sorted(shift.tags),
             "coverage": {"min": shift.coverage_min, "max": shift.coverage_max},
+            "soft_fill_penalty": shift.soft_fill_penalty,
         }
 
     def get_forbidden_transitions(self, min_rest_hours: int = 11) -> List[Tuple[str, str]]:

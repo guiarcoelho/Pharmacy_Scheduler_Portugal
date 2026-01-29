@@ -71,7 +71,7 @@ This gives you a clean separation:
 - The **scenario** defines *what exists* (workers, shifts, dates, tags).
 - The **rulebook** defines *how to judge a schedule* (requirements + preferences).
 
-See the **Rulebook reference** section below for the exact schema and currently supported rule types (“ops”).
+See the **Rulebook reference** section below for the exact primitive schema and expressions.
 
 ## 5) Special days (replacing “service week” hardcoding)
 
@@ -95,28 +95,50 @@ The rulebook is the single configuration file that defines *all* scheduling rule
 - **Hard constraints**: must always hold (otherwise the model is infeasible)
 - **Soft constraints**: preferences; violations add cost to the objective
 
-The engine reads `constraints.yaml` and translates each entry into CP-SAT constraints and objective terms.
+The engine reads `constraints.yaml` and translates each rule into CP-SAT constraints and objective terms.
 
-### Shape
+### Shape (primitive rules)
 
 ```yaml
-constraints:
+rulebook_version: 1
+rules:
   - id: one_shift_per_day
-    kind: hard
-    op: max_assignments_per_worker_per_day
-    params: { max: 1 }
+    for_each:
+      - { var: day, type: day }
+      - { var: worker, type: worker }
+    let:
+      worked_today:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              worker: { from: "i.worker" }
+    hard:
+      - { lhs: { ref: "worked_today" }, op: "<=", rhs: { const: 1 } }
 
-  - id: soft_fill_I_weekdays
-    kind: soft
-    op: coverage_soft_shortfall_to_shift_max
-    params: { penalty_per_unit: 3500 }
-    where:
-      and:
-        - { "==": [ { "var": "shift.code" }, "I" ] }
-        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+  - id: soft_fill_to_shift_max
+    for_each:
+      - { var: day, type: day }
+      - var: shift
+        type: shift
+        where: { "in": ["soft_fill", { "var": "this.labels" }] }
+    let:
+      assigned:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              shift: { from: "i.shift" }
+    soft:
+      - units:
+          max0:
+            sub:
+              - { var: "i.shift.coverage.max" }
+              - { ref: "assigned" }
+        penalty_per_unit: { var: "i.shift.soft_fill_penalty" }
 ```
 
-### Context available to JSONLogic (`where`)
+### JSONLogic contexts
 
 Rules are evaluated with a context dictionary that may include:
 
@@ -125,6 +147,7 @@ Rules are evaluated with a context dictionary that may include:
   - `weekday` (0=Mon … 6=Sun)
   - `is_holiday` (bool)
   - `is_weekend`, `is_saturday`, `is_sunday` (bools)
+  - `has_next_day` (bool)
   - `special_tags` (list of strings)
   - `in_report_range` (bool)
 - `shift`:
@@ -136,20 +159,10 @@ Rules are evaluated with a context dictionary that may include:
   - `groups` (list)
   - `caps` (list)
 
-### Operations (`op`)
+### Primitive expressions (summary)
 
-Supported ops are implemented in `src/pharma_scheduler/rulebook.py`.
-Current scenario uses:
-
-- `max_assignments_per_worker_per_day`
-- `coverage_bounds_from_shift`
-- `coverage_soft_shortfall_to_shift_max`
-- `min_rest_between_consecutive_days`
-- `weekend_coupling`
-- `sunday_comp_min_day_off`
-- `sunday_next_weekend_penalty`
-- `sunday_comp_delayed_penalty`
-- `weekly_no_day_off_penalty`
-- `cost_per_minute`
-- `weekday_excess_cost`
-- `fairness_mean_scaled`
+- **Selectors**: `count_assignments`, `sum_assignment_attr` with `select` and optional JSONLogic `where`.
+- **Arithmetic**: `sum`, `sub`, `mul`, `max0`, `abs`.
+- **Conditions**: `cmp` inside `only_if`, `bool_as_int` for soft penalties.
+- **Loops**: `for_each` over `day`, `week`, `worker`, `shift`, `shift_transition`.
+- **Ranges**: `day_range` with windows/filters and `range_size`.

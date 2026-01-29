@@ -69,7 +69,7 @@ All scheduling logic is controlled via the scenario files referenced from
 - `special_days.yaml`: special periods (e.g., service weeks) as date ranges
 - `workers.yaml`: worker database + groups + capabilities
 - `shifts.yaml`: shift times, coverage min/max, and JSONLogic `allowed_when`
-- `constraints.yaml`: rulebook of hard/soft constraints (JSONLogic filters)
+- `constraints.yaml`: primitive rulebook of hard/soft constraints (JSONLogic filters)
 - `solver.yaml`: solver limits and logging
 
 If you change the service-cycle parameters in `calendar.yaml`, regenerate

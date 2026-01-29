@@ -1,203 +1,983 @@
-constraints:
-  # Rulebook (hard + soft constraints).
-  #
-  # Each rule has:
-  # - `id`: human-readable identifier
-  # - `kind`: `hard` (must hold) or `soft` (adds penalty to objective)
-  # - `op`: operation name implemented by the engine (see `src/pharma_scheduler/rulebook.py`)
-  # - `params`: operation parameters (e.g., min_hours, penalty_per_unit)
-  # - `where`: optional JSONLogic filter evaluated with `{day, shift, worker}`
-  #
-  # Notes:
-  # - Coverage bounds (min/max) live on each shift in `shifts.yaml`.
-  # - Soft coverage is expressed as a penalty per missing worker:
-  #     penalty_per_unit * (shift.coverage.max - assigned)
-  #
+rulebook_version: 1
+
+rules:
   - id: one_shift_per_day
-    kind: hard
-    op: max_assignments_per_worker_per_day
-    params: { max: 1 }
+    doc: "At most one shift per worker per day."
+    for_each:
+      - { var: day, type: day }
+      - { var: worker, type: worker }
+    let:
+      worked_today:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              worker: { from: "i.worker" }
+    hard:
+      - { lhs: { ref: "worked_today" }, op: "<=", rhs: { const: 1 } }
 
   - id: coverage_bounds
-    kind: hard
-    op: coverage_bounds_from_shift
+    doc: "Enforce min/max coverage for all shifts that exist on a given day."
+    for_each:
+      - { var: day, type: day }
+      - { var: shift, type: shift }
+    let:
+      assigned:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              shift: { from: "i.shift" }
+    hard:
+      - { lhs: { ref: "assigned" }, op: ">=", rhs: { var: "i.shift.coverage.min" } }
+      - { lhs: { ref: "assigned" }, op: "<=", rhs: { var: "i.shift.coverage.max" } }
 
-  - id: soft_fill_I_weekdays
-    kind: soft
-    op: coverage_soft_shortfall_to_shift_max
-    params: { penalty_per_unit: 3500 }
-    # Apply only to the "I" shift on non-holiday weekdays outside the service period.
-    where:
-      and:
-        - { "==": [ { "var": "shift.code" }, "I" ] }
-        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
-        - { "==": [ { "var": "day.is_holiday" }, false ] }
-        - { "!": { "in": ["service", { "var": "day.special_tags" }] } }
+  - id: soft_fill_to_shift_max
+    doc: "Soft-fill to max for any shift labeled soft_fill."
+    for_each:
+      - { var: day, type: day }
+      - var: shift
+        type: shift
+        where: { "in": ["soft_fill", { "var": "this.labels" }] }
+    let:
+      assigned:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              shift: { from: "i.shift" }
+    soft:
+      - units:
+          max0:
+            sub:
+              - { var: "i.shift.coverage.max" }
+              - { ref: "assigned" }
+        penalty_per_unit: { var: "i.shift.soft_fill_penalty" }
 
   - id: min_daily_rest
-    kind: hard
-    op: min_rest_between_consecutive_days
-    params: { min_hours: 11 }
+    doc: "No forbidden transitions across consecutive days (min rest 11h)."
+    for_each:
+      - var: day
+        type: day
+        where: { "==": [ { "var": "this.has_next_day" }, true ] }
+      - { var: worker, type: worker }
+      - var: trans
+        type: shift_transition
+        params: { min_rest_hours: 11 }
+    let:
+      first:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              worker: { from: "i.worker" }
+              shift: { from: "i.trans.from" }
+      second:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day", offset: 1 }
+              worker: { from: "i.worker" }
+              shift: { from: "i.trans.to" }
+    hard:
+      - lhs: { sum: [ { ref: "first" }, { ref: "second" } ] }
+        op: "<="
+        rhs: { const: 1 }
 
   - id: weekend_coupling_core
-    kind: hard
-    op: weekend_coupling
-    # Only couple weekends for the core group (A-E).
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Core workers must either work both Sat+Sun or neither."
+    for_each:
+      - var: day
+        type: day
+        where:
+          and:
+            - { "==": [ { "var": "this.is_saturday" }, true ] }
+            - { "==": [ { "var": "this.has_next_day" }, true ] }
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      sat:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              worker: { from: "i.worker" }
+      sun:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day", offset: 1 }
+              worker: { from: "i.worker" }
+    hard:
+      - { lhs: { ref: "sat" }, op: "==", rhs: { ref: "sun" } }
 
   - id: sunday_comp_min_day_off
-    kind: hard
-    op: sunday_comp_min_day_off
-    params:
-      window: weekdays_week_of_and_after
-      min_days_off: 1
-    # Only applies to core workers.
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "If worked Sunday, require at least 1 weekday off in comp window."
+    for_each:
+      - var: day
+        type: day
+        where: { "==": [ { "var": "this.is_sunday" }, true ] }
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      sun_work:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              worker: { from: "i.worker" }
+      comp_work:
+        count_assignments:
+          select:
+            day_range: { from: "i.day", window: "weekdays_week_of_and_after" }
+            dims:
+              worker: { from: "i.worker" }
+      comp_days:
+        range_size: { from: "i.day", window: "weekdays_week_of_and_after" }
+    hard:
+      - only_if:
+          cmp:
+            op: ">="
+            lhs: { ref: "sun_work" }
+            rhs: { const: 1 }
+        lhs: { ref: "comp_work" }
+        op: "<="
+        rhs:
+          sub:
+            - { ref: "comp_days" }
+            - { const: 1 }
 
   - id: sunday_next_weekend_penalty
-    kind: soft
-    op: sunday_next_weekend_penalty
-    params: { penalty_per_unit: 3000 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Penalty if worked Sunday and the next Saturday."
+    for_each:
+      - var: day
+        type: day
+        where: { "==": [ { "var": "this.is_sunday" }, true ] }
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      sun:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              worker: { from: "i.worker" }
+      next_sat:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day", offset: "next_saturday" }
+              worker: { from: "i.worker" }
+    soft:
+      - units:
+          bool_as_int:
+            and:
+              - cmp:
+                  op: ">="
+                  lhs: { ref: "sun" }
+                  rhs: { const: 1 }
+              - cmp:
+                  op: ">="
+                  lhs: { ref: "next_sat" }
+                  rhs: { const: 1 }
+        penalty_per_unit: 3000
 
   - id: sunday_comp_delayed_penalty
-    kind: soft
-    op: sunday_comp_delayed_penalty
-    params: { penalty_per_unit: 800 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Penalty if Sunday worked and week1 weekdays are fully worked."
+    for_each:
+      - var: day
+        type: day
+        where: { "==": [ { "var": "this.is_sunday" }, true ] }
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      sun:
+        count_assignments:
+          select:
+            dims:
+              day: { from: "i.day" }
+              worker: { from: "i.worker" }
+      week1_work:
+        count_assignments:
+          select:
+            day_range: { from: "i.day", window: "weekdays_same_week" }
+            dims:
+              worker: { from: "i.worker" }
+    soft:
+      - units:
+          bool_as_int:
+            and:
+              - cmp:
+                  op: ">="
+                  lhs: { ref: "sun" }
+                  rhs: { const: 1 }
+              - cmp:
+                  op: "=="
+                  lhs: { ref: "week1_work" }
+                  rhs: { const: 5 }
+        penalty_per_unit: 800
 
   - id: weekly_no_day_off_penalty
-    kind: soft
-    op: weekly_no_day_off_penalty
-    params: { penalty_per_unit: 1000 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Penalty for weeks with no days off (core workers)."
+    for_each:
+      - { var: week, type: week }
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      worked_week:
+        count_assignments:
+          select:
+            day_range: { from: "i.week" }
+            dims:
+              worker: { from: "i.worker" }
+      week_days:
+        range_size: { from: "i.week" }
+    soft:
+      - units:
+          bool_as_int:
+            cmp:
+              op: "=="
+              lhs: { ref: "worked_week" }
+              rhs: { ref: "week_days" }
+        penalty_per_unit: 1000
 
   - id: cost_saturday
-    kind: soft
-    op: cost_per_minute
-    params: { penalty_per_unit: 10 }
-    # Count only report-range days (ignore buffer days used for constraints).
-    where:
-      and:
-        - { "==": [ { "var": "day.weekday" }, 5 ] }
-        - { "==": [ { "var": "day.in_report_range" }, true ] }
+    doc: "Cost per minute on Saturdays (report range only)."
+    for_each:
+      - var: day
+        type: day
+        where:
+          and:
+            - { "==": [ { "var": "this.weekday" }, 5 ] }
+            - { "==": [ { "var": "this.in_report_range" }, true ] }
+      - { var: shift, type: shift }
+    let:
+      minutes:
+        sum_assignment_attr:
+          select:
+            dims:
+              day: { from: "i.day" }
+              shift: { from: "i.shift" }
+          attr: "shift.paid_minutes"
+    soft:
+      - units: { ref: "minutes" }
+        penalty_per_unit: 10
 
   - id: cost_sunday
-    kind: soft
-    op: cost_per_minute
-    params: { penalty_per_unit: 14 }
-    where:
-      and:
-        - { "==": [ { "var": "day.weekday" }, 6 ] }
-        - { "==": [ { "var": "day.in_report_range" }, true ] }
+    doc: "Cost per minute on Sundays (report range only)."
+    for_each:
+      - var: day
+        type: day
+        where:
+          and:
+            - { "==": [ { "var": "this.weekday" }, 6 ] }
+            - { "==": [ { "var": "this.in_report_range" }, true ] }
+      - { var: shift, type: shift }
+    let:
+      minutes:
+        sum_assignment_attr:
+          select:
+            dims:
+              day: { from: "i.day" }
+              shift: { from: "i.shift" }
+          attr: "shift.paid_minutes"
+    soft:
+      - units: { ref: "minutes" }
+        penalty_per_unit: 14
 
   - id: cost_holiday
-    kind: soft
-    op: cost_per_minute
-    params: { penalty_per_unit: 10 }
-    where:
-      and:
-        - { "==": [ { "var": "day.is_holiday" }, true ] }
-        - { "==": [ { "var": "day.in_report_range" }, true ] }
+    doc: "Cost per minute on holidays (report range only)."
+    for_each:
+      - var: day
+        type: day
+        where:
+          and:
+            - { "==": [ { "var": "this.is_holiday" }, true ] }
+            - { "==": [ { "var": "this.in_report_range" }, true ] }
+      - { var: shift, type: shift }
+    let:
+      minutes:
+        sum_assignment_attr:
+          select:
+            dims:
+              day: { from: "i.day" }
+              shift: { from: "i.shift" }
+          attr: "shift.paid_minutes"
+    soft:
+      - units: { ref: "minutes" }
+        penalty_per_unit: 10
 
   - id: weekday_excess_cost
-    kind: soft
-    op: weekday_excess_cost
-    params: { penalty_per_unit: 10 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Penalty per minute above 40h weekdays in a week (core workers)."
+    for_each:
+      - { var: week, type: week }
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      weekday_minutes:
+        sum_assignment_attr:
+          select:
+            day_range: { from: "i.week", filter: "weekdays_only" }
+            dims:
+              worker: { from: "i.worker" }
+          attr: "shift.paid_minutes"
+      excess:
+        max0:
+          sub:
+            - { ref: "weekday_minutes" }
+            - { const: 2400 }
+    soft:
+      - units: { ref: "excess" }
+        penalty_per_unit: 10
 
   - id: fairness_weekend_minutes
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: weekend_minutes, penalty_per_unit: 10 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance weekend minutes across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        sum_assignment_attr:
+          select:
+            day_range: { filter: "weekend_only" }
+            dims:
+              worker: { from: "i.worker" }
+          attr: "shift.paid_minutes"
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            sum_assignment_attr:
+              select:
+                day_range: { filter: "weekend_only" }
+                dims:
+                  worker: { from: "i.w" }
+              attr: "shift.paid_minutes"
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 10
 
   - id: fairness_holiday_minutes
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: holiday_minutes, penalty_per_unit: 5 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance holiday minutes across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        sum_assignment_attr:
+          select:
+            day_range: { filter: "holiday_only" }
+            dims:
+              worker: { from: "i.worker" }
+          attr: "shift.paid_minutes"
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            sum_assignment_attr:
+              select:
+                day_range: { filter: "holiday_only" }
+                dims:
+                  worker: { from: "i.w" }
+              attr: "shift.paid_minutes"
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 5
 
   - id: fairness_weekday_excess
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: weekday_excess, penalty_per_unit: 1 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance weekday excess (over 40h) across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        sum_over:
+          iter:
+            var: wk
+            type: week
+          expr:
+            max0:
+              sub:
+                - sum_assignment_attr:
+                    select:
+                      day_range: { from: "i.wk", filter: "weekdays_only" }
+                      dims:
+                        worker: { from: "i.worker" }
+                    attr: "shift.paid_minutes"
+                - { const: 2400 }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            sum_over:
+              iter:
+                var: wk
+                type: week
+              expr:
+                max0:
+                  sub:
+                    - sum_assignment_attr:
+                        select:
+                          day_range: { from: "i.wk", filter: "weekdays_only" }
+                          dims:
+                            worker: { from: "i.w" }
+                        attr: "shift.paid_minutes"
+                    - { const: 2400 }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 1
 
   - id: fairness_shift_M
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:M, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance M shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "M" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "M" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_I
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:I, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance I shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "I" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "I" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_T
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:T, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance T shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "T" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "T" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_MW
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:MW, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance MW shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "MW" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "MW" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_IW
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:IW, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance IW shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "IW" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "IW" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_TW
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:TW, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance TW shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "TW" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "TW" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_MS
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:MS, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance MS shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "MS" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "MS" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_IS
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:IS, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance IS shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "IS" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "IS" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_TS
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:TS, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance TS shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "TS" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "TS" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_MSW
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:MSW, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance MSW shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "MSW" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "MSW" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_ISW
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:ISW, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance ISW shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "ISW" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "ISW" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_TSW
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:TSW, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance TSW shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "TSW" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "TSW" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50
 
   - id: fairness_shift_FSW
-    kind: soft
-    op: fairness_mean_scaled
-    params: { metric: shift_count:FSW, penalty_per_unit: 50 }
-    where: { "in": ["core", { "var": "worker.groups" }] }
+    doc: "Balance FSW shift counts across core workers."
+    for_each:
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      metric:
+        count_assignments:
+          select:
+            dims:
+              worker: { from: "i.worker" }
+            where: { "==": [ { "var": "shift.code" }, "FSW" ] }
+      total_metric:
+        sum_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            count_assignments:
+              select:
+                dims:
+                  worker: { from: "i.w" }
+                where: { "==": [ { "var": "shift.code" }, "FSW" ] }
+      n_workers:
+        count_over:
+          iter:
+            var: w
+            type: worker
+            where: { "in": ["core", { "var": "this.groups" }] }
+    soft:
+      - units:
+          abs:
+            sub:
+              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
+              - { ref: "total_metric" }
+        penalty_per_unit: 50

@@ -1,6 +1,6 @@
 solver:
   # Maximum search time for OR-Tools CP-SAT.
-  time_limit_seconds: 10
+  time_limit_seconds: 120
   # Parallel solver threads.
   num_search_workers: 8
   # Verbose CP-SAT logs.
