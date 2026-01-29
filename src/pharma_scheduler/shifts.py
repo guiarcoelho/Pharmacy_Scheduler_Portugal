@@ -3,15 +3,15 @@
 This module handles:
 - Shift parsing from configuration
 - Clock vs paid minutes calculation
-- Shift eligibility by worker
-- Coverage demand by day type
+- Shift existence by day (JSONLogic)
 - Forbidden transition calculation for rest constraints
 """
 
 from dataclasses import dataclass
 from datetime import time
 from typing import Dict, List, Set, Tuple
-from .calendar import DayType
+
+from .jsonlogic import evaluate
 
 
 @dataclass
@@ -23,6 +23,10 @@ class Shift:
     end: time  # For payment calculation
     clock_end: time  # For rest calculation (may differ from end)
     tags: Set[str]
+    coverage_min: int
+    coverage_max: int
+    allowed_when: dict | None
+    requires_worker_caps: Set[str]
 
     @property
     def paid_minutes(self) -> int:
@@ -54,21 +58,16 @@ class Shift:
 
 
 class ShiftManager:
-    """Manages shifts, eligibility, and coverage demand."""
+    """Manages shifts and shift existence by day."""
 
-    def __init__(self, shifts_config: List[Dict], demand_config: Dict):
+    def __init__(self, shifts_config: List[Dict]):
         """Initialize shift manager.
 
         Args:
             shifts_config: List of shift definitions from YAML
-            demand_config: Coverage demand by day type from YAML
         """
         self.shifts = self._parse_shifts(shifts_config)
         self.shifts_by_code = {s.code: s for s in self.shifts}
-        self.demand = self._parse_demand(demand_config)
-
-        # Precompute shift sets by day type
-        self._shifts_by_day_type = self._compute_shifts_by_day_type()
 
     def _parse_shifts(self, config: List[Dict]) -> List[Shift]:
         """Parse shift definitions from config."""
@@ -87,96 +86,28 @@ class ShiftManager:
                 start=start,
                 end=end,
                 clock_end=clock_end,
-                tags=set(s.get('tags', []))
+                tags=set(s.get('labels', [])),
+                coverage_min=int(s['coverage']['min']),
+                coverage_max=int(s['coverage']['max']),
+                allowed_when=s.get('allowed_when'),
+                requires_worker_caps=set(s.get('requires_worker_caps', [])),
             )
             shifts.append(shift)
 
         return shifts
 
-    def _parse_demand(self, config: Dict) -> Dict[DayType, Dict[str, int]]:
-        """Parse coverage demand from config."""
-        demand = {}
+    def is_shift_allowed(self, shift: Shift, day_context: dict) -> bool:
+        """Check if a shift exists on a given day."""
+        if shift.allowed_when is None:
+            return True
+        return bool(evaluate(shift.allowed_when, {"day": day_context, "shift": self._shift_ctx(shift)}))
 
-        # Map config keys to DayType enum
-        mapping = {
-            'normal_weekday': DayType.NORMAL_WEEKDAY,
-            'normal_weekend_or_holiday': DayType.NORMAL_WEEKEND_OR_HOLIDAY,
-            'service_weekday': DayType.SERVICE_WEEKDAY,
-            'service_weekend_or_holiday': DayType.SERVICE_WEEKEND_OR_HOLIDAY,
+    def _shift_ctx(self, shift: Shift) -> dict:
+        return {
+            "code": shift.code,
+            "labels": sorted(shift.tags),
+            "coverage": {"min": shift.coverage_min, "max": shift.coverage_max},
         }
-
-        for key, day_type in mapping.items():
-            if key in config:
-                demand[day_type] = config[key]
-
-        return demand
-
-    def _compute_shifts_by_day_type(self) -> Dict[DayType, List[Shift]]:
-        """Compute which shifts are allowed for each day type."""
-        result = {}
-
-        # Normal weekday: M, I, T
-        result[DayType.NORMAL_WEEKDAY] = [
-            s for s in self.shifts if s.code in ['M', 'I', 'T']
-        ]
-
-        # Normal weekend/holiday: MW, IW, TW
-        result[DayType.NORMAL_WEEKEND_OR_HOLIDAY] = [
-            s for s in self.shifts if s.code in ['MW', 'IW', 'TW']
-        ]
-
-        # Service weekday: MS, IS, TS, NS
-        result[DayType.SERVICE_WEEKDAY] = [
-            s for s in self.shifts if s.code in ['MS', 'IS', 'TS', 'FS', 'NS']
-        ]
-
-        # Service weekend/holiday: MSW, ISW, TSW, NSW, FSW
-        result[DayType.SERVICE_WEEKEND_OR_HOLIDAY] = [
-            s for s in self.shifts if s.code in ['MSW', 'ISW', 'TSW', 'NSW', 'FSW']
-        ]
-
-        return result
-
-    def get_allowed_shifts(self, day_type: DayType) -> List[Shift]:
-        """Get shifts allowed for a day type."""
-        return self._shifts_by_day_type[day_type]
-
-    def get_demand(self, day_type: DayType) -> Dict[str, int]:
-        """Get coverage demand for a day type."""
-        return self.demand.get(day_type, {})
-
-    def is_eligible(self, worker: str, shift_code: str, day_type: DayType,
-                    is_saturday: bool, is_sunday: bool) -> bool:
-        """Check if worker is eligible for shift on this day type.
-
-        Args:
-            worker: Worker ID (A-F)
-            shift_code: Shift code
-            day_type: Day type
-            is_saturday: Whether day is Saturday
-            is_sunday: Whether day is Sunday
-
-        Returns:
-            True if worker can work this shift
-        """
-        # Night shifts: only E
-        if shift_code in ['NS', 'NSW']:
-            return worker == 'E'
-
-        # Worker F: only MSW/FSW on service weekends (Sat or Sun)
-        if worker == 'F':
-            is_service_weekend = day_type == DayType.SERVICE_WEEKEND_OR_HOLIDAY
-            is_weekend_day = is_saturday or is_sunday
-            return (shift_code in ['MSW', 'FSW'] and
-                    is_service_weekend and is_weekend_day)
-
-        # Core workers (A-E): all non-night shifts on appropriate day types
-        shift = self.shifts_by_code.get(shift_code)
-        if shift is None:
-            return False
-
-        allowed_shifts = self.get_allowed_shifts(day_type)
-        return shift in allowed_shifts
 
     def get_forbidden_transitions(self, min_rest_hours: int = 11) -> List[Tuple[str, str]]:
         """Calculate forbidden shift transitions based on rest requirement.

@@ -4,14 +4,14 @@
 [![OR-Tools](https://img.shields.io/badge/Solver-OR--Tools-orange.svg)](https://developers.google.com/optimization)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Stop fighting with Excel.** This tool generates optimal monthly schedules for Portuguese pharmacies using Google's CP-SAT solver. It handles the complex labor laws, service week rotations, and fairness distribution that make manual scheduling a nightmare.
+**Stop fighting with Excel.** This tool generates optimal monthly schedules for Portuguese pharmacies using Google's CP-SAT solver. It handles labor laws, special service periods, and fairness distribution that make manual scheduling a nightmare.
 
 ---
 
 ## ✨ Key Features
 
 - **⚖️ Legal Compliance**: Enforces mandatory 11h daily rest periods and Sunday compensation rules.
-- **🔄 Service Weeks**: Handles the unique 8-day Monday-to-Monday service cycles automatically.
+- **🔄 Service Periods**: Supports configurable special-day periods (e.g., service weeks).
 - **🛡️ Portuguese Labor Law**: Built-in support for bank holidays and weekly hour limits (40h).
 - **🤝 Fairness Optimization**: Balances weekend work and holiday shifts across all core staff.
 - **📊 Professional Exports**: Generates color-coded Excel sheets and detailed CSV metrics.
@@ -62,11 +62,25 @@ python run.py --explain 2026-02-15
 
 ## ⚙️ How to Customize
 
-All scheduling logic is controlled via `config/instance.yaml`. Open it to:
-- **Set the Period**: Change `report_start` and `report_end`.
-- **Manage Staff**: Add or remove workers in the `workers` list.
-- **Sync Service Weeks**: Use `anchor_monday` to tell the system when the cycle starts.
-- **Tweak Demand**: Adjust how many people are needed for each shift.
+All scheduling logic is controlled via the scenario files referenced from
+`config/scenario.yaml` (default points to `config/scenarios/pharmacy_pt/`):
+
+- `calendar.yaml`: report range, buffer days, holiday locale
+- `special_days.yaml`: special periods (e.g., service weeks) as date ranges
+- `workers.yaml`: worker database + groups + capabilities
+- `shifts.yaml`: shift times, coverage min/max, and JSONLogic `allowed_when`
+- `constraints.yaml`: rulebook of hard/soft constraints (JSONLogic filters)
+- `solver.yaml`: solver limits and logging
+
+If you change the service-cycle parameters in `calendar.yaml`, regenerate
+`special_days.yaml` with:
+
+```bash
+python3 scripts/generate_special_days.py \
+  --calendar config/scenarios/pharmacy_pt/calendar.yaml \
+  --out config/scenarios/pharmacy_pt/special_days.yaml \
+  --name service
+```
 
 ---
 
@@ -75,7 +89,8 @@ All scheduling logic is controlled via `config/instance.yaml`. Open it to:
 For those interested in the underlying algorithms, check the [LOGIC.md](LOGIC.md) file. It explains:
 - How the 10-day Sunday compensation window works.
 - The weighting system for fairness vs. cost.
-- How the 8-day service week rotation is calculated.
+
+For details on the config-driven rulebook format, see `LOGIC.md`.
 
 ## 📜 License
 Published under the MIT License. Feel free to use and adapt!

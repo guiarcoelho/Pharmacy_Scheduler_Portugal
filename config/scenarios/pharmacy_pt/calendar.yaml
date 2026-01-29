@@ -1,0 +1,19 @@
+calendar:
+  # Report window (what you want to schedule).
+  report_start: "2026-02-01"
+  report_end: "2026-02-28"
+
+  # Extra days after report_end included in the solve horizon.
+  # Used by constraints that look "after" the report (e.g., Sunday compensation).
+  buffer_days: 7
+
+  # Holiday calendar for tagging days as bank holidays.
+  holiday_locale: "PT"
+
+  # Optional: used by `scripts/generate_special_days.py` to generate explicit
+  # service-period ranges into `special_days.yaml`.
+  service_cycle:
+    anchor_monday: "2026-01-05"
+    cycle_weeks: 4
+    service_week_in_cycle: 4
+    include_following_monday: true

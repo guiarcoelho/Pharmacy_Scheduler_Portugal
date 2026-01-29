@@ -35,7 +35,7 @@ class Exporter:
 
         # Schedule CSV
         schedule_df = report_solution[[
-            'date', 'day_type', 'shift', 'worker']].copy()
+            'date', 'day_tags', 'shift', 'worker']].copy()
         schedule_df = schedule_df.sort_values(['date', 'shift', 'worker'])
 
         schedule_path = self.output_dir / 'schedule.csv'
@@ -74,7 +74,7 @@ class Exporter:
 
             # Schedule sheet
             schedule_df = report_solution[[
-                'date', 'day_type', 'shift', 'shift_name', 'worker']].copy()
+                'date', 'day_tags', 'shift', 'shift_name', 'worker']].copy()
             schedule_df = schedule_df.sort_values(['date', 'shift', 'worker'])
             schedule_df.to_excel(writer, sheet_name='Schedule', index=False)
 
@@ -151,9 +151,8 @@ class Exporter:
 
         for date in report_solution['date'].unique():
             day_schedule = report_solution[report_solution['date'] == date]
-            day_type = day_schedule.iloc[0]['day_type']
-
-            print(f"\n{date} ({date.strftime('%A')}) - {day_type}")
+            day_tags = day_schedule.iloc[0]['day_tags']
+            print(f"\n{date} ({date.strftime('%A')}) - {day_tags}")
             print("-" * 40)
 
             for _, row in day_schedule.iterrows():

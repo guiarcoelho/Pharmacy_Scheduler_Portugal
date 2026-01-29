@@ -12,8 +12,6 @@ from typing import Dict, List, Optional, Tuple
 from ortools.sat.python import cp_model
 import pandas as pd
 
-from .calendar import Calendar
-from .shifts import ShiftManager
 from .model import SchedulingModel
 
 
@@ -23,7 +21,9 @@ class StatisticsCalculator:
     def __init__(self, model: SchedulingModel):
         self.model = model
         self.calendar = model.calendar
-        self.workers = model.workers
+        # `SchedulingModel.workers` is a list of worker dicts in the new config-first
+        # flow. Statistics are keyed by worker ID.
+        self.workers = getattr(model, "worker_ids", None) or [w["id"] for w in model.workers]
 
     def calculate(self, solution: pd.DataFrame) -> pd.DataFrame:
         """Calculate per-worker statistics."""
@@ -94,27 +94,25 @@ class StatisticsCalculator:
 
 
 class SchedulingSolver:
-    """Solver for pharmacy scheduling problem."""
+    """Solver for scheduling problem."""
 
-    def __init__(self, scheduling_model: SchedulingModel, config: Dict):
+    def __init__(self, scheduling_model: SchedulingModel, solver_config: Dict):
         """Initialize solver.
 
         Args:
             scheduling_model: Built scheduling model
-            config: Solver configuration
+            solver_config: Solver configuration dict
         """
         self.scheduling_model = scheduling_model
-        self.config = config
         self.solver = cp_model.CpSolver()
 
         # Configure solver
-        solver_config = config.get('solver', {})
         self.solver.parameters.max_time_in_seconds = solver_config.get(
             'time_limit_seconds', 300)
         self.solver.parameters.num_search_workers = solver_config.get(
             'num_search_workers', 8)
         self.solver.parameters.log_search_progress = solver_config.get(
-            'log_search_progress', True)
+            'log_search_progress', False)
         self.print_response_stats = solver_config.get('print_response_stats', False)
         random_seed = solver_config.get('random_seed')
         if random_seed is not None:
@@ -176,7 +174,7 @@ class SchedulingSolver:
                     'worker': w,
                     'shift': s,
                     'shift_name': shift.name,
-                    'day_type': calendar.get_day_type(d).value,
+                    'day_tags': ",".join(sorted(calendar.get_special_tags(d))),
                     'paid_minutes': shift.paid_minutes,
                     'is_saturday': calendar.is_saturday(d),
                     'is_sunday': calendar.is_sunday(d),
@@ -194,10 +192,10 @@ class SchedulingSolver:
     def _print_infeasibility_hints(self):
         """Print hints for debugging infeasibility."""
         print("\nInfeasibility debugging hints:")
-        print("1. Check service week alignment with date range")
+        print("1. Verify special-days tags cover required shifts")
         print("2. Verify enough eligible workers for each shift")
         print("3. Review Sunday compensation constraints (may need more buffer days)")
-        print("4. Check daily rest constraints (especially TS/TSW transitions)")
+        print("4. Check daily rest constraints (late-to-early transitions)")
         print("5. Run `python run.py --check` to validate configuration")
 
     def get_solution(self) -> Optional[pd.DataFrame]:

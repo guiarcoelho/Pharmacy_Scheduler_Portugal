@@ -1,0 +1,225 @@
+shifts:
+  # Shifts define:
+  # - time window (start/end, and optional clock_end for rest rules)
+  # - coverage bounds (min/max workers needed)
+  # - JSONLogic `allowed_when` that decides if the shift exists on a given day
+  # - optional `requires_worker_caps` matched against worker `caps`
+  #
+  # Coverage softness is NOT a shift property. Soft-vs-hard is defined in the
+  # rulebook (`constraints.yaml`) by adding a penalty per missing worker.
+  #
+  # Normal weekday shifts
+  - code: M
+    name: "Manhã (Morning)"
+    start: "08:30"
+    end: "17:30"
+    labels: [weekday, normal]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+        - { "!": { "in": ["service", { "var": "day.special_tags" }] } }
+
+  - code: I
+    name: "Intermédio (Intermediate)"
+    start: "10:30"
+    end: "19:30"
+    labels: [weekday, normal]
+    coverage: { min: 0, max: 1 }
+    allowed_when:
+      and:
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+        - { "!": { "in": ["service", { "var": "day.special_tags" }] } }
+
+  - code: T
+    name: "Tarde (Afternoon)"
+    start: "11:30"
+    end: "20:30"
+    labels: [weekday, normal]
+    coverage: { min: 2, max: 2 }
+    allowed_when:
+      and:
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+        - { "!": { "in": ["service", { "var": "day.special_tags" }] } }
+
+  # Normal weekend / holiday shifts
+  - code: MW
+    name: "Manhã Weekend"
+    start: "08:30"
+    end: "15:30"
+    labels: [weekend, normal]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "or": [
+              { "in": [ { "var": "day.weekday" }, [5,6] ] },
+              { "==": [ { "var": "day.is_holiday" }, true ] }
+            ] }
+        - { "!": { "in": ["service", { "var": "day.special_tags" }] } }
+
+  - code: IW
+    name: "Intermédio Weekend"
+    start: "10:30"
+    end: "17:30"
+    labels: [weekend, normal]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "or": [
+              { "in": [ { "var": "day.weekday" }, [5,6] ] },
+              { "==": [ { "var": "day.is_holiday" }, true ] }
+            ] }
+        - { "!": { "in": ["service", { "var": "day.special_tags" }] } }
+
+  - code: TW
+    name: "Tarde Weekend"
+    start: "16:30"
+    end: "20:30"
+    labels: [weekend, normal]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "or": [
+              { "in": [ { "var": "day.weekday" }, [5,6] ] },
+              { "==": [ { "var": "day.is_holiday" }, true ] }
+            ] }
+        - { "!": { "in": ["service", { "var": "day.special_tags" }] } }
+
+  # Service weekday shifts
+  - code: MS
+    name: "Manhã Serviço"
+    start: "09:00"
+    end: "18:00"
+    labels: [weekday, service]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+
+  - code: IS
+    name: "Intermédio Serviço"
+    start: "10:00"
+    end: "19:00"
+    labels: [weekday, service]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+
+  - code: TS
+    name: "Tarde Serviço"
+    start: "16:00"
+    end: "00:00"
+    clock_end: "23:59"
+    labels: [weekday, service, late]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+
+  - code: FS
+    name: "Tarde Extra Serviço"
+    start: "13:00"
+    end: "22:00"
+    labels: [weekday, service, late]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+
+  - code: NS
+    name: "Noite Serviço"
+    start: "00:00"
+    end: "08:30"
+    labels: [weekday, service, night]
+    coverage: { min: 1, max: 1 }
+    requires_worker_caps: [night_capable]
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+
+  # Service weekend / holiday shifts
+  - code: MSW
+    name: "Manhã Serviço Weekend"
+    start: "08:30"
+    end: "13:30"
+    labels: [weekend, service]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "or": [
+              { "in": [ { "var": "day.weekday" }, [5,6] ] },
+              { "==": [ { "var": "day.is_holiday" }, true ] }
+            ] }
+
+  - code: ISW
+    name: "Intermédio Serviço Weekend"
+    start: "14:00"
+    end: "22:00"
+    labels: [weekend, service]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "or": [
+              { "in": [ { "var": "day.weekday" }, [5,6] ] },
+              { "==": [ { "var": "day.is_holiday" }, true ] }
+            ] }
+
+  - code: TSW
+    name: "Tarde Serviço Weekend"
+    start: "16:00"
+    end: "00:00"
+    clock_end: "23:59"
+    labels: [weekend, service, late]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "or": [
+              { "in": [ { "var": "day.weekday" }, [5,6] ] },
+              { "==": [ { "var": "day.is_holiday" }, true ] }
+            ] }
+
+  - code: NSW
+    name: "Noite Serviço Weekend"
+    start: "00:00"
+    end: "08:30"
+    labels: [weekend, service, night]
+    coverage: { min: 1, max: 1 }
+    requires_worker_caps: [night_capable]
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "or": [
+              { "in": [ { "var": "day.weekday" }, [5,6] ] },
+              { "==": [ { "var": "day.is_holiday" }, true ] }
+            ] }
+
+  - code: FSW
+    name: "Fim de Semana Serviço (Extra)"
+    start: "09:30"
+    end: "16:30"
+    labels: [weekend, service, extra]
+    coverage: { min: 1, max: 1 }
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "or": [
+              { "in": [ { "var": "day.weekday" }, [5,6] ] },
+              { "==": [ { "var": "day.is_holiday" }, true ] }
+            ] }

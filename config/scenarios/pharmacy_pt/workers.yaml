@@ -1,0 +1,45 @@
+groups:
+  - id: core
+    description: Core staff
+  - id: service_extra
+    description: Extra staff for service weekends
+
+workers:
+  # Workers are generic. Eligibility is controlled by:
+  # - `caps` (capabilities) matched against shift `requires_worker_caps`
+  # - optional `allowed_when` JSONLogic evaluated with `{day, shift, worker}`
+  - id: A
+    name: Worker A
+    groups: [core]
+    caps: []
+
+  - id: B
+    name: Worker B
+    groups: [core]
+    caps: []
+
+  - id: C
+    name: Worker C
+    groups: [core]
+    caps: []
+
+  - id: D
+    name: Worker D
+    groups: [core]
+    caps: []
+
+  - id: E
+    name: Worker E
+    groups: [core]
+    caps: [night_capable]
+
+  - id: F
+    name: Worker F
+    groups: [service_extra]
+    caps: [service_extra]
+    # Restrict worker F to only work on service weekends, and only on MSW/FSW.
+    allowed_when:
+      and:
+        - { "in": ["service", { "var": "day.special_tags" }] }
+        - { "in": [ { "var": "shift.code" }, ["MSW", "FSW"] ] }
+        - { "in": [ { "var": "day.weekday" }, [5,6] ] }

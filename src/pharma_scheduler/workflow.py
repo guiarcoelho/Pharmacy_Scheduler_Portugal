@@ -6,38 +6,21 @@ notebooks, or other Python entrypoints.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import yaml
-
 from .calendar import Calendar
-from .config_schema import InstanceConfig
 from .export import Exporter
 from .model import SchedulingModel
+from .scenario_loader import load_scenario
 from .shifts import ShiftManager
 from .solver import SchedulingSolver
+from .special_days import build_special_tag_index, load_special_days_data
 
 
 def load_config(config_path: str) -> dict:
-    """Load and validate configuration, merging `instance.yaml` + `shifts.yaml`."""
-    config_file = Path(config_path)
-    if not config_file.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
-
-    with config_file.open() as f:
-        instance_config = yaml.safe_load(f)
-
-    shifts_file = config_file.parent / "shifts.yaml"
-    if not shifts_file.exists():
-        raise FileNotFoundError(f"Shifts file not found: {shifts_file}")
-
-    with shifts_file.open() as f:
-        shifts_config = yaml.safe_load(f)
-
-    config = {**instance_config, "shifts": shifts_config["shifts"]}
-    validated_config = InstanceConfig.from_dict(config)
-    return validated_config.to_dict()
+    """Load scenario configuration (scenario.yaml)."""
+    return load_scenario(config_path)
 
 
 def check_configuration(config_path: str) -> int:
@@ -49,47 +32,42 @@ def check_configuration(config_path: str) -> int:
     try:
         print(f"\nLoading configuration from {config_path}...")
         config = load_config(config_path)
-        print("✓ Configuration files loaded successfully")
+        print("✓ Scenario files loaded successfully")
 
-        report_start = datetime.fromisoformat(config["report_start"]).date()
-        report_end = datetime.fromisoformat(config["report_end"]).date()
-        anchor_monday = datetime.fromisoformat(
-            config["service_cycle"]["anchor_monday"]
-        ).date()
+        calendar_cfg = config["calendar"].get("calendar", config["calendar"])
+        report_start = datetime.fromisoformat(calendar_cfg["report_start"]).date()
+        report_end = datetime.fromisoformat(calendar_cfg["report_end"]).date()
+        buffer_days = calendar_cfg.get("buffer_days", 14)
+        locale = calendar_cfg.get("holiday_locale", "PT")
 
         print(f"\n✓ Report period: {report_start} to {report_end}")
         print(f"  Duration: {(report_end - report_start).days + 1} days")
 
-        if anchor_monday.weekday() != 0:
-            print(f"✗ ERROR: Anchor date {anchor_monday} is not a Monday!")
-            return 1
-        print(f"✓ Service cycle anchor: {anchor_monday} (Monday)")
-
+        special_days = load_special_days_data(config.get("special_days", {}))
+        all_dates = [
+            report_start + timedelta(days=i)
+            for i in range((report_end - report_start).days + 1 + buffer_days)
+        ]
         calendar = Calendar(
             report_start=report_start,
             report_end=report_end,
-            buffer_days=config.get("buffer_days", 14),
-            anchor_monday=anchor_monday,
-            cycle_weeks=config["service_cycle"]["cycle_weeks"],
-            service_week_in_cycle=config["service_cycle"]["service_week_in_cycle"],
-            locale=config.get("locale", "PT"),
+            buffer_days=buffer_days,
+            locale=locale,
+            special_tags_by_date=build_special_tag_index(
+                dates=all_dates, specials=special_days
+            ),
         )
 
-        service_days = sum(
-            1
-            for d in calendar.dates
-            if "SERVICE" in calendar.get_day_type(d).value.upper()
-        )
-        print(f"✓ Service days in solve range: {service_days}")
-
-        workers = [w["id"] for w in config["workers"]]
+        workers = [w["id"] for w in config["workers"].get("workers", [])]
         core_workers = [
-            w["id"] for w in config["workers"] if "core" in w.get("groups", [])
+            w["id"]
+            for w in config["workers"].get("workers", [])
+            if "core" in w.get("groups", [])
         ]
         night_capable = [
             w["id"]
-            for w in config["workers"]
-            if "night_capable" in w.get("groups", [])
+            for w in config["workers"].get("workers", [])
+            if "night_capable" in w.get("caps", [])
         ]
 
         print(f"\n✓ Workers configured: {len(workers)}")
@@ -99,13 +77,8 @@ def check_configuration(config_path: str) -> int:
         if len(night_capable) == 0:
             print("  ⚠ WARNING: No night-capable workers (NS/NSW will be uncovered)")
 
-        shift_manager = ShiftManager(config["shifts"], config["demand"])
+        shift_manager = ShiftManager(config["shifts"]["shifts"])
         print(f"\n✓ Shifts configured: {len(shift_manager.shifts)}")
-
-        forbidden = shift_manager.get_forbidden_transitions(
-            config["constraints"]["min_daily_rest_hours"]
-        )
-        print(f"✓ Forbidden transitions (11h rest): {len(forbidden)}")
 
         print("\n" + "=" * 60)
         print("✓ Configuration is valid!")
@@ -134,32 +107,37 @@ def solve(
 
     print(f"\nLoading configuration from {config_path}...")
     config = load_config(config_path)
+    calendar_cfg = config["calendar"].get("calendar", config["calendar"])
 
-    report_start = datetime.fromisoformat(config["report_start"]).date()
-    report_end = datetime.fromisoformat(config["report_end"]).date()
-    buffer_days = config.get("buffer_days", 14)
-    anchor_monday = datetime.fromisoformat(config["service_cycle"]["anchor_monday"]).date()
+    report_start = datetime.fromisoformat(calendar_cfg["report_start"]).date()
+    report_end = datetime.fromisoformat(calendar_cfg["report_end"]).date()
+    buffer_days = calendar_cfg.get("buffer_days", 14)
+    locale = calendar_cfg.get("holiday_locale", "PT")
 
     print("Building calendar...")
+    special_days = load_special_days_data(config.get("special_days", {}))
+    special_tags = build_special_tag_index(
+        dates=[report_start + timedelta(days=i) for i in range((report_end - report_start).days + 1 + buffer_days)],
+        specials=special_days,
+    )
     calendar = Calendar(
         report_start=report_start,
         report_end=report_end,
         buffer_days=buffer_days,
-        anchor_monday=anchor_monday,
-        cycle_weeks=config["service_cycle"]["cycle_weeks"],
-        service_week_in_cycle=config["service_cycle"]["service_week_in_cycle"],
-        locale=config.get("locale", "PT"),
+        locale=locale,
+        special_tags_by_date=special_tags,
     )
     print(f"  {calendar}")
 
     print("Loading shifts...")
-    shift_manager = ShiftManager(shifts_config=config["shifts"], demand_config=config["demand"])
+    shift_manager = ShiftManager(shifts_config=config["shifts"]["shifts"])
     print(f"  {shift_manager}")
 
-    workers = [w["id"] for w in config["workers"]]
-    core_workers = [w["id"] for w in config["workers"] if "core" in w.get("groups", [])]
+    workers = config["workers"].get("workers", [])
+    worker_ids = [w["id"] for w in workers]
+    core_workers = [w["id"] for w in workers if "core" in w.get("groups", [])]
 
-    print(f"Workers: {', '.join(workers)}")
+    print(f"Workers: {', '.join(worker_ids)}")
     print(f"Core workers: {', '.join(core_workers)}")
 
     print("\nBuilding CP-SAT model...")
@@ -167,12 +145,11 @@ def solve(
         calendar=calendar,
         shift_manager=shift_manager,
         workers=workers,
-        core_workers=core_workers,
-        config=config,
+        rulebook=config["constraints"].get("constraints", []),
     )
     model.build()
 
-    solver = SchedulingSolver(model, config)
+    solver = SchedulingSolver(model, config.get("solver", {}).get("solver", {}))
     success = solver.solve()
     if not success:
         print("\n✗ Failed to find feasible solution")
@@ -223,23 +200,26 @@ def explain(*, config_path: str, out_dir: str, target_date: str) -> int:
             return 0
 
         config = load_config(config_path)
-        report_start = datetime.fromisoformat(config["report_start"]).date()
-        report_end = datetime.fromisoformat(config["report_end"]).date()
-        anchor_monday = datetime.fromisoformat(config["service_cycle"]["anchor_monday"]).date()
+        calendar_cfg = config["calendar"].get("calendar", config["calendar"])
+        report_start = datetime.fromisoformat(calendar_cfg["report_start"]).date()
+        report_end = datetime.fromisoformat(calendar_cfg["report_end"]).date()
+        buffer_days = calendar_cfg.get("buffer_days", 14)
+        locale = calendar_cfg.get("holiday_locale", "PT")
+        special_days = load_special_days_data(config.get("special_days", {}))
+        special_tags = build_special_tag_index(
+            dates=[report_start + timedelta(days=i) for i in range((report_end - report_start).days + 1 + buffer_days)],
+            specials=special_days,
+        )
 
         calendar = Calendar(
             report_start=report_start,
             report_end=report_end,
-            buffer_days=config.get("buffer_days", 14),
-            anchor_monday=anchor_monday,
-            cycle_weeks=config["service_cycle"]["cycle_weeks"],
-            service_week_in_cycle=config["service_cycle"]["service_week_in_cycle"],
-            locale=config.get("locale", "PT"),
+            buffer_days=buffer_days,
+            locale=locale,
+            special_tags_by_date=special_tags,
         )
-
-        day_type = calendar.get_day_type(day)
         print(f"\nDate: {day} ({day.strftime('%A')})")
-        print(f"Day Type: {day_type.value}")
+        print(f"Special Tags: {', '.join(sorted(calendar.get_special_tags(day)))}")
         print("-" * 30)
         print(f"{'Worker':<10} {'Shift':<10}")
         print("-" * 30)
@@ -253,4 +233,3 @@ def explain(*, config_path: str, out_dir: str, target_date: str) -> int:
     except Exception as e:
         print(f"\n✗ ERROR: {e}")
         return 1
-

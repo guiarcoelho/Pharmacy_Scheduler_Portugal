@@ -33,8 +33,8 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--config",
-        default="config/instance.yaml",
-        help="Path to instance.yaml (default: config/instance.yaml)",
+        default="config/scenario.yaml",
+        help="Path to scenario.yaml (default: config/scenario.yaml)",
     )
     parser.add_argument(
         "--out",

@@ -1,0 +1,14 @@
+# Default scenario entrypoint.
+#
+# `python run.py` reads this file (unless overridden via `--config`) and loads the
+# referenced YAML files to build the scheduling problem.
+#
+# Keep paths relative to this file.
+scenario:
+  name: pharmacy_pt
+  calendar: scenarios/pharmacy_pt/calendar.yaml
+  special_days: scenarios/pharmacy_pt/special_days.yaml
+  workers: scenarios/pharmacy_pt/workers.yaml
+  shifts: scenarios/pharmacy_pt/shifts.yaml
+  constraints: scenarios/pharmacy_pt/constraints.yaml
+  solver: scenarios/pharmacy_pt/solver.yaml

@@ -1,0 +1,203 @@
+constraints:
+  # Rulebook (hard + soft constraints).
+  #
+  # Each rule has:
+  # - `id`: human-readable identifier
+  # - `kind`: `hard` (must hold) or `soft` (adds penalty to objective)
+  # - `op`: operation name implemented by the engine (see `src/pharma_scheduler/rulebook.py`)
+  # - `params`: operation parameters (e.g., min_hours, penalty_per_unit)
+  # - `where`: optional JSONLogic filter evaluated with `{day, shift, worker}`
+  #
+  # Notes:
+  # - Coverage bounds (min/max) live on each shift in `shifts.yaml`.
+  # - Soft coverage is expressed as a penalty per missing worker:
+  #     penalty_per_unit * (shift.coverage.max - assigned)
+  #
+  - id: one_shift_per_day
+    kind: hard
+    op: max_assignments_per_worker_per_day
+    params: { max: 1 }
+
+  - id: coverage_bounds
+    kind: hard
+    op: coverage_bounds_from_shift
+
+  - id: soft_fill_I_weekdays
+    kind: soft
+    op: coverage_soft_shortfall_to_shift_max
+    params: { penalty_per_unit: 3500 }
+    # Apply only to the "I" shift on non-holiday weekdays outside the service period.
+    where:
+      and:
+        - { "==": [ { "var": "shift.code" }, "I" ] }
+        - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
+        - { "==": [ { "var": "day.is_holiday" }, false ] }
+        - { "!": { "in": ["service", { "var": "day.special_tags" }] } }
+
+  - id: min_daily_rest
+    kind: hard
+    op: min_rest_between_consecutive_days
+    params: { min_hours: 11 }
+
+  - id: weekend_coupling_core
+    kind: hard
+    op: weekend_coupling
+    # Only couple weekends for the core group (A-E).
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: sunday_comp_min_day_off
+    kind: hard
+    op: sunday_comp_min_day_off
+    params:
+      window: weekdays_week_of_and_after
+      min_days_off: 1
+    # Only applies to core workers.
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: sunday_next_weekend_penalty
+    kind: soft
+    op: sunday_next_weekend_penalty
+    params: { penalty_per_unit: 3000 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: sunday_comp_delayed_penalty
+    kind: soft
+    op: sunday_comp_delayed_penalty
+    params: { penalty_per_unit: 800 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: weekly_no_day_off_penalty
+    kind: soft
+    op: weekly_no_day_off_penalty
+    params: { penalty_per_unit: 1000 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: cost_saturday
+    kind: soft
+    op: cost_per_minute
+    params: { penalty_per_unit: 10 }
+    # Count only report-range days (ignore buffer days used for constraints).
+    where:
+      and:
+        - { "==": [ { "var": "day.weekday" }, 5 ] }
+        - { "==": [ { "var": "day.in_report_range" }, true ] }
+
+  - id: cost_sunday
+    kind: soft
+    op: cost_per_minute
+    params: { penalty_per_unit: 14 }
+    where:
+      and:
+        - { "==": [ { "var": "day.weekday" }, 6 ] }
+        - { "==": [ { "var": "day.in_report_range" }, true ] }
+
+  - id: cost_holiday
+    kind: soft
+    op: cost_per_minute
+    params: { penalty_per_unit: 10 }
+    where:
+      and:
+        - { "==": [ { "var": "day.is_holiday" }, true ] }
+        - { "==": [ { "var": "day.in_report_range" }, true ] }
+
+  - id: weekday_excess_cost
+    kind: soft
+    op: weekday_excess_cost
+    params: { penalty_per_unit: 10 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_weekend_minutes
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: weekend_minutes, penalty_per_unit: 10 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_holiday_minutes
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: holiday_minutes, penalty_per_unit: 5 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_weekday_excess
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: weekday_excess, penalty_per_unit: 1 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_M
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:M, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_I
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:I, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_T
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:T, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_MW
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:MW, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_IW
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:IW, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_TW
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:TW, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_MS
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:MS, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_IS
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:IS, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_TS
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:TS, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_MSW
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:MSW, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_ISW
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:ISW, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_TSW
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:TSW, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
+
+  - id: fairness_shift_FSW
+    kind: soft
+    op: fairness_mean_scaled
+    params: { metric: shift_count:FSW, penalty_per_unit: 50 }
+    where: { "in": ["core", { "var": "worker.groups" }] }
