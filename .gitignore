@@ -4,7 +4,10 @@ __pycache__/
 *$py.class
 .venv/
 .env
+*/.DS_Store
 
 # Project Output
 out/
 *.xlsx
+.DS_Store
+.DS_Store
