@@ -17,7 +17,7 @@ class SchedulingModel:
         calendar: Calendar,
         shift_manager: ShiftManager,
         workers: List[dict],
-        rulebook: List[dict],
+        rulebook: dict,
     ):
         """Initialize scheduling model.
 
@@ -25,7 +25,7 @@ class SchedulingModel:
             calendar: Calendar with dates and day types
             shift_manager: Shift manager with shifts and demand
             workers: All worker dicts
-            rulebook: List of constraint rules
+            rulebook: Constraint rulebook config
         """
         self.calendar = calendar
         self.shift_manager = shift_manager

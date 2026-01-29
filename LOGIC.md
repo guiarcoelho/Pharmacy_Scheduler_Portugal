@@ -164,5 +164,6 @@ Rules are evaluated with a context dictionary that may include:
 - **Selectors**: `count_assignments`, `sum_assignment_attr` with `select` and optional JSONLogic `where`.
 - **Arithmetic**: `sum`, `sub`, `mul`, `max0`, `abs`.
 - **Conditions**: `cmp` inside `only_if`, `bool_as_int` for soft penalties.
-- **Loops**: `for_each` over `day`, `week`, `worker`, `shift`, `shift_transition`.
+- **Loops**: `for_each` over `day`, `week`, `worker`, `shift`, `shift_transition`, and `list` (from top-level lists like `fairness_items`).
 - **Ranges**: `day_range` with windows/filters and `range_size`.
+- **Meta**: `eval` (evaluate an expression stored in config) and `with` (temporary variable bindings).

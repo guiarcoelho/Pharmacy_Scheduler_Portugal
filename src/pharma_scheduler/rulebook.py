@@ -38,6 +38,7 @@ class RulebookCompiler:
         self.workers = self._normalize_workers(workers)
         self.assignments = assignments
         self.objective_terms: List[Any] = []
+        self.rulebook_data: dict = {}
 
         self._day_items = self._build_day_items()
         self._day_by_date = {item["date_obj"]: item for item in self._day_items}
@@ -49,7 +50,13 @@ class RulebookCompiler:
         self._transition_cache: Dict[int, List[dict]] = {}
         self._var_counter = 0
 
-    def apply(self, rules: Iterable[dict]):
+    def apply(self, rulebook: Iterable[dict] | dict):
+        if isinstance(rulebook, dict):
+            self.rulebook_data = rulebook
+            rules = rulebook.get("rules", []) or []
+        else:
+            self.rulebook_data = {}
+            rules = rulebook or []
         for raw in rules:
             self._apply_rule(raw)
 
@@ -188,6 +195,8 @@ class RulebookCompiler:
         elif iter_type == "shift_transition":
             min_hours = int(iter_def.get("params", {}).get("min_rest_hours", 11))
             items = self._get_shift_transitions(min_hours)
+        elif iter_type == "list":
+            items = self._get_list_items(iter_def)
         else:
             raise ValueError(f"Unknown iterator type: {iter_type}")
 
@@ -200,6 +209,15 @@ class RulebookCompiler:
             if evaluate(where, ctx):
                 filtered.append(item)
         return filtered
+
+    def _get_list_items(self, iter_def: dict) -> List[dict]:
+        path = iter_def.get("from")
+        if not path:
+            raise ValueError("list iterator requires 'from'")
+        items = self._get_rulebook_path(path)
+        if not isinstance(items, list):
+            raise ValueError(f"list iterator expects list at '{path}'")
+        return items
 
     def _get_shift_transitions(self, min_rest_hours: int) -> List[dict]:
         if min_rest_hours not in self._transition_cache:
@@ -297,6 +315,32 @@ class RulebookCompiler:
             var = self._new_int_var(0, ub, "abs")
             self.model.AddAbsEquality(var, inner)
             return var
+        if "with" in expr:
+            payload = expr["with"]
+            bindings = payload.get("bindings", {})
+            saved = {}
+            for key, ref in bindings.items():
+                saved[key] = env["i"].get(key)
+                env["i"][key] = self._resolve_ref(ref, env)
+            try:
+                return self._compile_int(payload["expr"], env, let_values)
+            finally:
+                for key, value in saved.items():
+                    if value is None:
+                        env["i"].pop(key, None)
+                    else:
+                        env["i"][key] = value
+        if "eval" in expr:
+            target = expr["eval"]
+            if isinstance(target, dict) and "var" in target:
+                target = self._resolve_var(target["var"], env, let_values)
+            elif isinstance(target, dict) and "ref" in target:
+                target = let_values[target["ref"]]
+            elif isinstance(target, str):
+                target = self._resolve_ref(target, env)
+            if isinstance(target, dict):
+                return self._compile_int(target, env, let_values)
+            return target
         if "bool_as_int" in expr:
             cond = self._compile_bool(expr["bool_as_int"], env, let_values)
             return self._bool_to_int(cond)
@@ -344,6 +388,21 @@ class RulebookCompiler:
         if isinstance(expr, dict):
             if "jsonlogic" in expr:
                 return bool(self._eval_jsonlogic(expr["jsonlogic"], env))
+            if "with" in expr:
+                payload = expr["with"]
+                bindings = payload.get("bindings", {})
+                saved = {}
+                for key, ref in bindings.items():
+                    saved[key] = env["i"].get(key)
+                    env["i"][key] = self._resolve_ref(ref, env)
+                try:
+                    return self._compile_bool(payload["expr"], env, let_values)
+                finally:
+                    for key, value in saved.items():
+                        if value is None:
+                            env["i"].pop(key, None)
+                        else:
+                            env["i"][key] = value
             if "and" in expr:
                 parts = [self._compile_bool(x, env, let_values) for x in expr["and"]]
                 if all(isinstance(p, bool) for p in parts):
@@ -589,6 +648,15 @@ class RulebookCompiler:
                 return None
         return cur
 
+    def _get_rulebook_path(self, path: str) -> Any:
+        cur: Any = self.rulebook_data
+        for part in str(path).split("."):
+            if isinstance(cur, dict) and part in cur:
+                cur = cur[part]
+            else:
+                return None
+        return cur
+
     def _eval_jsonlogic(self, logic: Any, env: dict) -> Any:
         view = self._build_env_view(env)
         return evaluate(logic, view)
@@ -602,6 +670,31 @@ class RulebookCompiler:
         if isinstance(expr, dict):
             if "const" in expr:
                 return abs(int(expr["const"]))
+            if "eval" in expr:
+                target = expr["eval"]
+                if isinstance(target, dict) and "var" in target:
+                    target = self._resolve_var(target["var"], env, let_values)
+                elif isinstance(target, str):
+                    target = self._resolve_ref(target, env)
+                if isinstance(target, dict):
+                    return self._estimate_upper_bound(target, env, let_values)
+                if isinstance(target, (int, float)):
+                    return abs(int(target))
+            if "with" in expr:
+                payload = expr["with"]
+                bindings = payload.get("bindings", {})
+                saved = {}
+                for key, ref in bindings.items():
+                    saved[key] = env["i"].get(key)
+                    env["i"][key] = self._resolve_ref(ref, env)
+                try:
+                    return self._estimate_upper_bound(payload["expr"], env, let_values)
+                finally:
+                    for key, value in saved.items():
+                        if value is None:
+                            env["i"].pop(key, None)
+                        else:
+                            env["i"][key] = value
             if "count_assignments" in expr:
                 select = expr["count_assignments"]["select"]
                 return len(self._select_records(select, env))
