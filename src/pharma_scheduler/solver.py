@@ -198,7 +198,7 @@ class SchedulingSolver:
         print("2. Verify enough eligible workers for each shift")
         print("3. Review Sunday compensation constraints (may need more buffer days)")
         print("4. Check daily rest constraints (especially TS/TSW transitions)")
-        print("5. Use 'pharma-schedule check' to validate configuration")
+        print("5. Run `python run.py --check` to validate configuration")
 
     def get_solution(self) -> Optional[pd.DataFrame]:
         """Get solution DataFrame."""

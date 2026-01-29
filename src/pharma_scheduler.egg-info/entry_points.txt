@@ -1,2 +1,0 @@
-[console_scripts]
-pharma-schedule = pharma_scheduler.cli:main

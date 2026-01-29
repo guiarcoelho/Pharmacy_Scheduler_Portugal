@@ -73,7 +73,7 @@ The pharmacy scheduler solves a complex staff rostering problem for Portuguese p
 - **model.py**: CP-SAT variable creation, constraints, objective
 - **solver.py**: Solver execution, solution extraction, statistics
 - **export.py**: CSV/Excel generation, console output
-- **cli.py**: Command-line interface (solve, check, explain)
+- **workflow.py**: High-level helpers used by `run.py`
 
 ---
 
@@ -891,7 +891,7 @@ If the solver returns INFEASIBLE:
 3. **Sunday compensation**: May need more buffer days if many Sundays in report period
 4. **Daily rest**: Check if shift transitions are too tight (especially with TS/TSW)
 
-Use `pharma-schedule check` to validate configuration before solving.
+Use `python run.py --check` to validate configuration before solving.
 
 ### Suboptimal Solutions
 

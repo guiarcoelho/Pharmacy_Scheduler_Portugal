@@ -23,9 +23,6 @@ dev = [
     "pytest-cov>=4.0.0",
 ]
 
-[project.scripts]
-pharma-schedule = "pharma_scheduler.cli:main"
-
 [tool.setuptools.packages.find]
 where = ["src"]
 

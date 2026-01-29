@@ -8,55 +8,107 @@ This script performs the standard workflow:
 3. Exports results to CSV and Excel.
 """
 
+import argparse
 import sys
-import os
 from pathlib import Path
 
 # Add src to python path to allow running without installation
 sys.path.append(str(Path(__file__).parent / "src"))
 
-try:
-    from pharma_scheduler.cli import cmd_solve, cmd_check
-    from argparse import Namespace
-except ImportError as e:
-    print(f"Error: Could not import project modules. {e}")
-    print("Ensure you are running this from the project root and dependencies are installed.")
-    sys.exit(1)
+def _import_workflow():
+    try:
+        from pharma_scheduler.workflow import check_configuration, explain, solve
+    except ImportError as e:
+        print(f"Error: Could not import project modules. {e}")
+        print(
+            "Ensure you are running this from the project root and dependencies are installed."
+        )
+        return None
+    return check_configuration, explain, solve
 
-def main():
-    print("🚀 Starting Pharmacy Scheduler Workflow...")
-    
-    # Define standard paths
-    config_path = "config/instance.yaml"
-    output_dir = "out"
-    
-    # 1. Check Configuration
-    print("\n[1/2] Validating configuration...")
-    check_args = Namespace(config=config_path)
-    if cmd_check(check_args) != 0:
-        print("❌ Configuration validation failed. Please fix the issues above.")
-        sys.exit(1)
-    
-    # 2. Solve and Export
-    print("\n[2/2] Generating optimal schedule...")
-    solve_args = Namespace(
-        config=config_path,
-        out=output_dir,
-        excel=True,
-        verbose=False
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate pharmacy schedules (recommended entrypoint: python run.py)"
     )
-    
-    if cmd_solve(solve_args) == 0:
-        print("\n" + "="*60)
-        print("✅ WORKFLOW COMPLETE")
-        print("="*60)
-        print(f"Schedule: {output_dir}/schedule.csv")
-        print(f"Excel Report: {output_dir}/schedule.xlsx")
-        print(f"Worker Stats: {output_dir}/worker_stats.csv")
-        print("="*60)
-    else:
+
+    parser.add_argument(
+        "--config",
+        default="config/instance.yaml",
+        help="Path to instance.yaml (default: config/instance.yaml)",
+    )
+    parser.add_argument(
+        "--out",
+        default="out",
+        help="Output directory for CSV/XLSX exports (default: out/)",
+    )
+    parser.add_argument(
+        "--excel",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Export an Excel workbook (default: --excel)",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print schedule by date to the console",
+    )
+
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate configuration and exit",
+    )
+    mode.add_argument(
+        "--explain",
+        metavar="YYYY-MM-DD",
+        help="Explain schedule for a specific date (reads schedule.csv from --out)",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    workflow = _import_workflow()
+    if workflow is None:
+        return 1
+
+    check_configuration, explain, solve = workflow
+
+    if args.check:
+        return check_configuration(args.config)
+
+    if args.explain:
+        return explain(config_path=args.config, out_dir=args.out, target_date=args.explain)
+
+    print("🚀 Starting Pharmacy Scheduler Workflow...")
+
+    print("\n[1/2] Validating configuration...")
+    if check_configuration(args.config) != 0:
+        print("❌ Configuration validation failed. Please fix the issues above.")
+        return 1
+
+    print("\n[2/2] Generating optimal schedule...")
+    rc = solve(
+        config_path=args.config,
+        out_dir=args.out,
+        excel=args.excel,
+        verbose=args.verbose,
+    )
+    if rc != 0:
         print("❌ Scheduling failed. See errors above.")
-        sys.exit(1)
+        return rc
+
+    print("\n" + "=" * 60)
+    print("✅ WORKFLOW COMPLETE")
+    print("=" * 60)
+    print(f"Schedule: {args.out}/schedule.csv")
+    if args.excel:
+        print(f"Excel Report: {args.out}/schedule.xlsx")
+    print(f"Worker Stats: {args.out}/worker_stats.csv")
+    print("=" * 60)
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

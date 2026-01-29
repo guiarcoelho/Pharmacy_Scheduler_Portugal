@@ -48,6 +48,16 @@ python run.py
 
 Check the `out/` folder for your `schedule.xlsx`!
 
+Optional helpers:
+
+```bash
+# Validate config (no solving)
+python run.py --check
+
+# Explain who works on a specific day (requires out/schedule.csv)
+python run.py --explain 2026-02-15
+```
+
 ---
 
 ## ⚙️ How to Customize
