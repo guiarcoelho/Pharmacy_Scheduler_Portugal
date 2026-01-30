@@ -320,6 +320,41 @@ rules:
               rhs: { ref: "week_days" }
         penalty_per_unit: 1000
 
+  - id: min_weekly_hours_prorated
+    doc: "Hard minimum weekly hours prorated by available (non-vacation) days."
+    for_each:
+      - { var: week, type: week }
+      - var: worker
+        type: worker
+        where: { "in": ["core", { "var": "this.groups" }] }
+    let:
+      worked_minutes:
+        sum_assignment_attr:
+          select:
+            day_range: { from: "i.week", filter: "report_range_only" }
+            dims:
+              worker: { from: "i.worker" }
+          attr: "shift.paid_minutes"
+      available_days:
+        count_over:
+          iter:
+            var: d
+            type: day
+            where:
+              and:
+                - { "==": [ { "var": "this.week_id" }, { "var": "i.week.id" } ] }
+                - { "==": [ { "var": "this.in_report_range" }, true ] }
+                - "!":
+                    in:
+                      - { "var": "this.date" }
+                      - { "var": "i.worker.vacation_days" }
+    hard:
+      - lhs:
+          mul: [ { ref: "worked_minutes" }, { const: 7 } ]
+        op: ">="
+        rhs:
+          mul: [ { const: 2400 }, { ref: "available_days" } ]
+
   - id: fairness_generic
     doc: "Balance metrics listed in fairness_items across core workers."
     for_each:
