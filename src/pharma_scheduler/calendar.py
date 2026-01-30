@@ -154,6 +154,7 @@ class Calendar:
 
     def get_day_context(self, d: date) -> dict:
         """Get dictionary of day attributes for JSONLogic evaluation."""
+        has_next_day = d + timedelta(days=1) in self.dates
         return {
             "date": d.isoformat(),
             "weekday": d.weekday(),
@@ -163,7 +164,8 @@ class Calendar:
             "is_sunday": self.is_sunday(d),
             "special_tags": sorted(self.get_special_tags(d)),
             "in_report_range": self.is_in_report_range(d),
-            "has_next_day": d + timedelta(days=1) in self.dates,
+            "has_next_day": has_next_day,
+            "next_date": (d + timedelta(days=1)).isoformat() if has_next_day else None,
         }
 
     def __len__(self) -> int:

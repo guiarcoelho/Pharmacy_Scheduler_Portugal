@@ -67,10 +67,13 @@ All scheduling logic is controlled via the scenario files referenced from
 
 - `calendar.yaml`: report range, buffer days, holiday locale
 - `special_days.yaml`: special periods (e.g., service weeks) as date ranges
-- `workers.yaml`: worker database + groups + capabilities
+- `workers.yaml`: worker database + groups + capabilities + optional vacations
 - `shifts.yaml`: shift times, coverage min/max, and JSONLogic `allowed_when`
 - `constraints.yaml`: primitive rulebook of hard/soft constraints (JSONLogic filters + fairness_items)
 - `solver.yaml`: solver limits and logging
+
+Vacations are supported per worker in `workers.yaml` as `{start, days}` ranges
+(inclusive), and are treated as hard unavailability.
 
 If you change the service-cycle parameters in `calendar.yaml`, regenerate
 `special_days.yaml` with:

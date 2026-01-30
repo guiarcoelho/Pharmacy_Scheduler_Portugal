@@ -98,6 +98,7 @@ class RulebookCompiler:
             w = dict(w)
             w.setdefault("groups", [])
             w.setdefault("caps", [])
+            w.setdefault("vacation_days", [])
             normalized.append(w)
         return normalized
 

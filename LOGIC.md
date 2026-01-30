@@ -148,6 +148,7 @@ Rules are evaluated with a context dictionary that may include:
   - `is_holiday` (bool)
   - `is_weekend`, `is_saturday`, `is_sunday` (bools)
   - `has_next_day` (bool)
+  - `next_date` (ISO string or null)
   - `special_tags` (list of strings)
   - `in_report_range` (bool)
 - `shift`:
@@ -158,6 +159,7 @@ Rules are evaluated with a context dictionary that may include:
   - `id`
   - `groups` (list)
   - `caps` (list)
+  - `vacation_days` (list of ISO date strings)
 
 ### Primitive expressions (summary)
 
@@ -202,6 +204,7 @@ Each worker:
 - `groups` (for rules like “core”)
 - `caps` (capabilities used by shifts)
 - optional `allowed_when` JSONLogic (worker-day-shift eligibility)
+- optional `vacations`: list of `{ start: YYYY-MM-DD, days: N }` (inclusive)
 
 ### `shifts.yaml`
 Defines shifts, their time windows, coverage, and existence rules.
@@ -258,6 +261,10 @@ The **fairness rule** is a good example of advanced usage:
 - Evaluates each metric with `eval`
 - Uses `with` to bind the worker or shift temporarily
 - Penalizes deviation from the group mean
+
+In the pharmacy scenario, fairness is **availability-weighted** so workers with
+vacations are compared against the group proportionally to their non-vacation
+days (using cross-multiplication to avoid division).
 
 ### `solver.yaml`
 Controls CP-SAT runtime behavior:

@@ -15,7 +15,11 @@ from .model import SchedulingModel
 from .scenario_loader import load_scenario
 from .shifts import ShiftManager
 from .solver import SchedulingSolver
-from .special_days import build_special_tag_index, load_special_days_data
+from .special_vacation_days import (
+    apply_worker_vacations,
+    build_special_tag_index,
+    load_special_days_data,
+)
 
 
 def load_config(config_path: str) -> dict:
@@ -58,15 +62,21 @@ def check_configuration(config_path: str) -> int:
             ),
         )
 
-        workers = [w["id"] for w in config["workers"].get("workers", [])]
+        worker_defs = config["workers"].get("workers", [])
+        warnings = apply_worker_vacations(
+            workers=worker_defs,
+            solve_dates=calendar.dates,
+        )
+
+        workers = [w["id"] for w in worker_defs]
         core_workers = [
             w["id"]
-            for w in config["workers"].get("workers", [])
+            for w in worker_defs
             if "core" in w.get("groups", [])
         ]
         night_capable = [
             w["id"]
-            for w in config["workers"].get("workers", [])
+            for w in worker_defs
             if "night_capable" in w.get("caps", [])
         ]
 
@@ -76,6 +86,10 @@ def check_configuration(config_path: str) -> int:
 
         if len(night_capable) == 0:
             print("  ⚠ WARNING: No night-capable workers (NS/NSW will be uncovered)")
+        if warnings:
+            print("\n⚠ Vacation warnings:")
+            for warning in warnings:
+                print(f"  - {warning}")
 
         shift_manager = ShiftManager(config["shifts"]["shifts"])
         print(f"\n✓ Shifts configured: {len(shift_manager.shifts)}")
@@ -134,11 +148,19 @@ def solve(
     print(f"  {shift_manager}")
 
     workers = config["workers"].get("workers", [])
+    warnings = apply_worker_vacations(
+        workers=workers,
+        solve_dates=calendar.dates,
+    )
     worker_ids = [w["id"] for w in workers]
     core_workers = [w["id"] for w in workers if "core" in w.get("groups", [])]
 
     print(f"Workers: {', '.join(worker_ids)}")
     print(f"Core workers: {', '.join(core_workers)}")
+    if warnings:
+        print("\n⚠ Vacation warnings:")
+        for warning in warnings:
+            print(f"  - {warning}")
 
     print("\nBuilding CP-SAT model...")
     model = SchedulingModel(

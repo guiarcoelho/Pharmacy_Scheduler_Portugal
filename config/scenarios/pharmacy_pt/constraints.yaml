@@ -143,7 +143,20 @@ rules:
               day: { from: "i.day", offset: 1 }
               worker: { from: "i.worker" }
     hard:
-      - { lhs: { ref: "sat" }, op: "==", rhs: { ref: "sun" } }
+      - only_if:
+          jsonlogic:
+            and:
+              - "!":
+                  in:
+                    - { "var": "day.date" }
+                    - { "var": "worker.vacation_days" }
+              - "!":
+                  in:
+                    - { "var": "day.next_date" }
+                    - { "var": "worker.vacation_days" }
+        lhs: { ref: "sat" }
+        op: "=="
+        rhs: { ref: "sun" }
 
   - id: sunday_comp_min_day_off
     doc: "If worked Sunday, require at least 1 weekday off in comp window."
@@ -308,16 +321,44 @@ rules:
                 shift: "i.fairness.shift"
               expr:
                 eval: { var: "i.fairness.metric" }
-      n_workers:
+      avail:
         count_over:
+          iter:
+            var: d
+            type: day
+            where:
+              and:
+                - { "==": [ { "var": "this.in_report_range" }, true ] }
+                - "!":
+                    in:
+                      - { "var": "this.date" }
+                      - { "var": "i.worker.vacation_days" }
+      total_avail:
+        sum_over:
           iter:
             var: w
             type: worker
             where: { "in": ["core", { "var": "this.groups" }] }
+          expr:
+            with:
+              bindings:
+                worker: "i.w"
+              expr:
+                count_over:
+                  iter:
+                    var: d
+                    type: day
+                    where:
+                      and:
+                        - { "==": [ { "var": "this.in_report_range" }, true ] }
+                        - "!":
+                            in:
+                              - { "var": "this.date" }
+                              - { "var": "i.worker.vacation_days" }
     soft:
       - units:
           abs:
             sub:
-              - { mul: [ { ref: "n_workers" }, { ref: "metric" } ] }
-              - { ref: "total_metric" }
+              - { mul: [ { ref: "metric" }, { ref: "total_avail" } ] }
+              - { mul: [ { ref: "total_metric" }, { ref: "avail" } ] }
         penalty_per_unit: { var: "i.fairness.penalty_per_unit" }

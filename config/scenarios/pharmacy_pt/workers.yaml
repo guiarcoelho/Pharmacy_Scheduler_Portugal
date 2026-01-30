@@ -8,10 +8,14 @@ workers:
   # Workers are generic. Eligibility is controlled by:
   # - `caps` (capabilities) matched against shift `requires_worker_caps`
   # - optional `allowed_when` JSONLogic evaluated with `{day, shift, worker}`
+  # Optional `vacations`: list of {start: YYYY-MM-DD, days: N} (inclusive)
   - id: A
     name: Worker A
     groups: [core]
     caps: []
+    vacations:
+      - start: 2026-02-02
+        days: 5
 
   - id: B
     name: Worker B
@@ -34,6 +38,11 @@ workers:
     caps: [night_capable]
 
   - id: F
+    name: Worker F
+    groups: [core]
+    caps: [night_capable]
+
+  - id: G
     name: Worker F
     groups: [service_extra]
     caps: [service_extra]

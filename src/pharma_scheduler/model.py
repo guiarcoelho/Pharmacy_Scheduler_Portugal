@@ -76,7 +76,11 @@ class SchedulingModel:
         # Primary assignment variables
         for w in self.workers:
             w_id = w["id"]
+            vacation_dates = w.get("vacation_dates", set())
             for d in self.calendar.dates:
+                if d in vacation_dates:
+                    self._shift_codes_by_worker_day[w_id, d] = []
+                    continue
                 day_ctx = self.calendar.get_day_context(d)
                 shift_codes = []
 
@@ -100,6 +104,7 @@ class SchedulingModel:
         worker_ctx = dict(worker)
         worker_ctx.setdefault("groups", [])
         worker_ctx.setdefault("caps", [])
+        worker_ctx.setdefault("vacation_days", [])
         shift_ctx = self.shift_manager._shift_ctx(shift)
         return bool(
             evaluate(
