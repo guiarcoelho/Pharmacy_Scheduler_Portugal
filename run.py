@@ -5,7 +5,7 @@ Unified Run Script for Pharmacy Scheduler
 This script performs the standard workflow:
 1. Validates the project configuration.
 2. Generates the optimal schedule.
-3. Exports results to CSV and Excel.
+3. Exports results to CSV.
 """
 
 import argparse
@@ -39,13 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out",
         default="out",
-        help="Output directory for CSV/XLSX exports (default: out/)",
-    )
-    parser.add_argument(
-        "--excel",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Export an Excel workbook (default: --excel)",
+        help="Output directory for CSV exports (default: out/)",
     )
     parser.add_argument(
         "--verbose",
@@ -93,7 +87,6 @@ def main() -> int:
     rc = solve(
         config_path=args.config,
         out_dir=args.out,
-        excel=args.excel,
         verbose=args.verbose,
     )
     if rc != 0:
@@ -104,8 +97,6 @@ def main() -> int:
     print("✅ WORKFLOW COMPLETE")
     print("=" * 60)
     print(f"Schedule: {args.out}/schedule.csv")
-    if args.excel:
-        print(f"Excel Report: {args.out}/schedule.xlsx")
     print(f"Worker Stats: {args.out}/worker_stats.csv")
     print("=" * 60)
     return 0

@@ -14,7 +14,7 @@ workers:
     groups: [core]
     caps: []
     vacations:
-      - start: 2026-02-02
+      - start: 2026-02-03
         days: 5
 
   - id: B

@@ -9,8 +9,8 @@ __pycache__/
 */pharma_scheduler.egg-info
 
 # Project Output
-out/schedule.csv
-out/worker_stats.csv
+out/*
 *.xlsx
+!/out/Template.xlsx
 *.log
 .DS_Store

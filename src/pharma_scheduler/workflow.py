@@ -111,7 +111,6 @@ def solve(
     *,
     config_path: str,
     out_dir: str,
-    excel: bool = True,
     verbose: bool = False,
 ) -> int:
     """Generate a schedule and export results."""
@@ -184,8 +183,6 @@ def solve(
     exporter = Exporter(out_dir)
     exporter.export_csv(solution, stats)
 
-    if excel:
-        exporter.export_excel(solution, stats)
 
     if verbose:
         exporter.print_schedule_by_date(solution)

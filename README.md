@@ -46,7 +46,7 @@ Everything is pre-configured for a demo run. Just execute:
 python run.py
 ```
 
-Check the `out/` folder for your `schedule.xlsx`!
+Check the `out/` folder for `schedule.csv` and `worker_stats.csv`.
 
 Optional helpers:
 
@@ -56,6 +56,12 @@ python run.py --check
 
 # Explain who works on a specific day (requires out/schedule.csv)
 python run.py --explain 2026-02-15
+
+# Convert CSVs to formatted Excel using a template
+python3 scripts/format_schedule_excel.py \
+  --template out/Template.xlsx \
+  --workers config/scenarios/pharmacy_pt/workers.yaml \
+  --out out/schedule.xlsx
 ```
 
 ---
@@ -74,6 +80,9 @@ All scheduling logic is controlled via the scenario files referenced from
 
 Vacations are supported per worker in `workers.yaml` as `{start, days}` ranges
 (inclusive), and are treated as hard unavailability.
+
+The main workflow exports CSV only. Use `scripts/format_schedule_excel.py` to
+generate the formatted Excel workbook from the CSVs.
 
 If you change the service-cycle parameters in `calendar.yaml`, regenerate
 `special_days.yaml` with:
