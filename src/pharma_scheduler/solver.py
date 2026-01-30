@@ -55,13 +55,12 @@ class StatisticsCalculator:
             shift_counts = {s_code: 0 for s_code in self.model.shift_manager.shifts_by_code.keys()}
             shift_counts.update(report_schedule['shift'].value_counts().to_dict())
 
-            # Weekday minutes and excess
+            # Weekly hours and excess (full week)
             weeks = self.calendar.get_all_weeks()
             total_excess = 0
             for week in weeks:
                 week_days = self.calendar.get_days_in_week(week)
-                weekdays = [d for d in week_days if d.weekday() < 5]
-                week_min = report_schedule[report_schedule['date'].isin(weekdays)]['paid_minutes'].sum()
+                week_min = report_schedule[report_schedule['date'].isin(week_days)]['paid_minutes'].sum()
                 total_excess += max(0, week_min - 2400)
 
             # Full weekends off
@@ -86,7 +85,7 @@ class StatisticsCalculator:
                 'holiday_minutes': holiday_minutes,
                 'sundays_worked': sundays_worked,
                 'full_weekends_off': full_weekends_off,
-                'total_excess_40h': total_excess,
+                'total_excess_40h/week': total_excess / 60,
                 **{f'shift_{k}': v for k, v in shift_counts.items()}
             })
 

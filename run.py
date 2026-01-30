@@ -15,6 +15,7 @@ from pathlib import Path
 # Add src to python path to allow running without installation
 sys.path.append(str(Path(__file__).parent / "src"))
 
+
 def _import_workflow():
     try:
         from pharma_scheduler.workflow import check_configuration, explain, solve
@@ -25,6 +26,7 @@ def _import_workflow():
         )
         return None
     return check_configuration, explain, solve
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -93,13 +95,14 @@ def main() -> int:
         print("❌ Scheduling failed. See errors above.")
         return rc
 
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 78)
     print("✅ WORKFLOW COMPLETE")
-    print("=" * 60)
+    print("=" * 78)
     print(f"Schedule: {args.out}/schedule.csv")
     print(f"Worker Stats: {args.out}/worker_stats.csv")
-    print("=" * 60)
+    print("=" * 78)
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

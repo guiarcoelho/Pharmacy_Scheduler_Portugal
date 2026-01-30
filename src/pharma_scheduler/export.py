@@ -67,7 +67,8 @@ class Exporter:
 
         with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
             # Grid view (requested by user): Rows = Workers, Columns = Dates
-            grid_df = report_solution.pivot(index='worker', columns='date', values='shift')
+            grid_df = report_solution.pivot(
+                index='worker', columns='date', values='shift')
             # Fill NaNs with "OFF"
             grid_df = grid_df.fillna('OFF')
             grid_df.to_excel(writer, sheet_name='Grid')
@@ -112,9 +113,9 @@ class Exporter:
         """
         report_solution = solution[solution['in_report_range']]
 
-        print("\n" + "="*60)
+        print("\n" + "="*78)
         print("SCHEDULE SUMMARY")
-        print("="*60)
+        print("="*78)
 
         print(
             f"\nDate range: {report_solution['date'].min()} to {report_solution['date'].max()}")
@@ -124,17 +125,18 @@ class Exporter:
         if objective_value is not None:
             print(f"\nObjective value: {objective_value:.0f}")
 
-        print("\n" + "-"*60)
+        print("\n" + "-"*78)
         print("WORKER STATISTICS")
-        print("-"*60)
+        print("-"*78)
 
         # Format stats for display
-        cols_to_show = ['worker', 'total_hours', 'total_shifts', 'days_off', 'sundays_worked', 'full_weekends_off']
+        cols_to_show = ['worker', 'total_hours', 'total_shifts',
+                        'days_off', 'sundays_worked', 'full_weekends_off']
         display_stats = stats[cols_to_show].copy()
 
         print(display_stats.to_string(index=False))
 
-        print("\n" + "="*60)
+        print("\n" + "="*78)
 
     def print_schedule_by_date(self, solution: pd.DataFrame):
         """Print schedule organized by date.
@@ -145,9 +147,9 @@ class Exporter:
         report_solution = solution[solution['in_report_range']].sort_values(
             'date')
 
-        print("\n" + "="*60)
+        print("\n" + "="*78)
         print("SCHEDULE BY DATE")
-        print("="*60)
+        print("="*78)
 
         for date in report_solution['date'].unique():
             day_schedule = report_solution[report_solution['date'] == date]

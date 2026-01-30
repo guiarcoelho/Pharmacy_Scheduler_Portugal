@@ -53,6 +53,7 @@ class RulebookCompiler:
     def apply(self, rulebook: Iterable[dict] | dict):
         if isinstance(rulebook, dict):
             self.rulebook_data = rulebook
+            self._validate_filters()
             rules = rulebook.get("rules", []) or []
         else:
             self.rulebook_data = {}
@@ -101,6 +102,18 @@ class RulebookCompiler:
             w.setdefault("vacation_days", [])
             normalized.append(w)
         return normalized
+
+    def _validate_filters(self) -> None:
+        filters = self.rulebook_data.get("filters", {}) or {}
+        if not isinstance(filters, dict):
+            raise ValueError("filters must be a mapping of name -> JSONLogic")
+        for name, logic in filters.items():
+            if not isinstance(name, str):
+                raise ValueError("filter names must be strings")
+            if not isinstance(logic, (dict, bool)):
+                raise ValueError(
+                    f"filter '{name}' must be JSONLogic dict or boolean"
+                )
 
     def _build_day_items(self) -> List[dict]:
         items = []
@@ -618,14 +631,13 @@ class RulebookCompiler:
         raise ValueError(f"Unknown window: {window_spec}")
 
     def _day_filter(self, name: str, d: date) -> bool:
-        if name == "weekdays_only":
-            return d.weekday() < 5
-        if name == "weekend_only":
-            return d.weekday() >= 5
-        if name == "holiday_only":
-            return self.calendar.is_holiday(d)
-        if name == "report_range_only":
-            return self.calendar.is_in_report_range(d)
+        filters = self.rulebook_data.get("filters", {}) or {}
+        if name in filters:
+            logic = filters[name]
+            if isinstance(logic, bool):
+                return logic
+            day_ctx = self.calendar.get_day_context(d)
+            return bool(evaluate(logic, {"day": day_ctx}))
         raise ValueError(f"Unknown day filter: {name}")
 
     def _resolve_worker_id(self, spec: dict, env: dict) -> str:

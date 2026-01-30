@@ -125,6 +125,21 @@ day_range:
     filter: weekdays_only
 ```
 
+### Day filters (day_range.filter)
+Day filters can now be defined in config. Add a `filters:` section in
+`constraints.yaml` with JSONLogic expressions over a `day` context:
+
+```yaml
+filters:
+  weekdays_only:
+    "<": [ { "var": "day.weekday" }, 5 ]
+  holiday_only:
+    "==": [ { "var": "day.is_holiday" }, true ]
+```
+
+Filters are referenced by name in `day_range.filter` and window definitions.
+All filters must be defined in `constraints.yaml`.
+
 
 The rulebook is the single configuration file that defines *all* scheduling rules:
 

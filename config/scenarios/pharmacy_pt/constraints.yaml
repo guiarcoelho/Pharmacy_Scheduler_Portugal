@@ -1,5 +1,15 @@
 rulebook_version: 1
 
+filters:
+  weekdays_only:
+    "<": [ { "var": "day.weekday" }, 5 ]
+  weekend_only:
+    ">=": [ { "var": "day.weekday" }, 5 ]
+  holiday_only:
+    "==": [ { "var": "day.is_holiday" }, true ]
+  report_range_only:
+    "==": [ { "var": "day.in_report_range" }, true ]
+
 windows:
   weekdays_same_week:
     anchor: week_monday
@@ -146,7 +156,7 @@ rules:
         rhs: { const: 1 }
 
   - id: weekend_coupling_core
-    doc: "Core workers must either work both Sat+Sun or neither."
+    doc: "Core/management workers must either work both Sat+Sun or neither."
     for_each:
       - var: day
         type: day
@@ -156,7 +166,10 @@ rules:
             - { "==": [ { "var": "this.has_next_day" }, true ] }
       - var: worker
         type: worker
-        where: { "in": ["core", { "var": "this.groups" }] }
+        where:
+          or:
+            - { "in": ["core", { "var": "this.groups" }] }
+            - { "in": ["management", { "var": "this.groups" }] }
     let:
       sat:
         count_assignments:
@@ -194,7 +207,10 @@ rules:
         where: { "==": [ { "var": "this.is_sunday" }, true ] }
       - var: worker
         type: worker
-        where: { "in": ["core", { "var": "this.groups" }] }
+        where:
+          or:
+            - { "in": ["core", { "var": "this.groups" }] }
+            - { "in": ["management", { "var": "this.groups" }] }
     let:
       sun_work:
         count_assignments:
@@ -231,7 +247,10 @@ rules:
         where: { "==": [ { "var": "this.is_sunday" }, true ] }
       - var: worker
         type: worker
-        where: { "in": ["core", { "var": "this.groups" }] }
+        where:
+          or:
+            - { "in": ["core", { "var": "this.groups" }] }
+            - { "in": ["management", { "var": "this.groups" }] }
     let:
       sun:
         count_assignments:
@@ -267,7 +286,10 @@ rules:
         where: { "==": [ { "var": "this.is_sunday" }, true ] }
       - var: worker
         type: worker
-        where: { "in": ["core", { "var": "this.groups" }] }
+        where:
+          or:
+            - { "in": ["core", { "var": "this.groups" }] }
+            - { "in": ["management", { "var": "this.groups" }] }
     let:
       sun:
         count_assignments:
@@ -296,12 +318,15 @@ rules:
         penalty_per_unit: 800
 
   - id: weekly_no_day_off_penalty
-    doc: "Penalty for weeks with no days off (core workers)."
+    doc: "Penalty for weeks with no days off (core/management workers)."
     for_each:
       - { var: week, type: week }
       - var: worker
         type: worker
-        where: { "in": ["core", { "var": "this.groups" }] }
+        where:
+          or:
+            - { "in": ["core", { "var": "this.groups" }] }
+            - { "in": ["management", { "var": "this.groups" }] }
     let:
       worked_week:
         count_assignments:
@@ -320,10 +345,13 @@ rules:
               rhs: { ref: "week_days" }
         penalty_per_unit: 1000
 
-  - id: min_weekly_hours_prorated
+  - id: min_weekly_hours
     doc: "Hard minimum weekly hours prorated by available (non-vacation) days."
     for_each:
-      - { var: week, type: week }
+      - var: week
+        type: week
+        where:
+          "==": [ { "var": "this.size" }, 7 ]
       - var: worker
         type: worker
         where: { "in": ["core", { "var": "this.groups" }] }
@@ -331,7 +359,7 @@ rules:
       worked_minutes:
         sum_assignment_attr:
           select:
-            day_range: { from: "i.week", filter: "report_range_only" }
+            day_range: { from: "i.week" }
             dims:
               worker: { from: "i.worker" }
           attr: "shift.paid_minutes"
@@ -343,7 +371,6 @@ rules:
             where:
               and:
                 - { "==": [ { "var": "this.week_id" }, { "var": "i.week.id" } ] }
-                - { "==": [ { "var": "this.in_report_range" }, true ] }
                 - "!":
                     in:
                       - { "var": "this.date" }
@@ -356,14 +383,17 @@ rules:
           mul: [ { const: 2400 }, { ref: "available_days" } ]
 
   - id: fairness_generic
-    doc: "Balance metrics listed in fairness_items across core workers."
+    doc: "Balance metrics listed in fairness_items across core/management workers."
     for_each:
       - var: fairness
         type: list
         from: fairness_items
       - var: worker
         type: worker
-        where: { "in": ["core", { "var": "this.groups" }] }
+        where:
+          or:
+            - { "in": ["core", { "var": "this.groups" }] }
+            - { "in": ["management", { "var": "this.groups" }] }
     let:
       metric:
         with:
@@ -376,7 +406,10 @@ rules:
           iter:
             var: w
             type: worker
-            where: { "in": ["core", { "var": "this.groups" }] }
+            where:
+              or:
+                - { "in": ["core", { "var": "this.groups" }] }
+                - { "in": ["management", { "var": "this.groups" }] }
           expr:
             with:
               bindings:
@@ -401,7 +434,10 @@ rules:
           iter:
             var: w
             type: worker
-            where: { "in": ["core", { "var": "this.groups" }] }
+            where:
+              or:
+                - { "in": ["core", { "var": "this.groups" }] }
+                - { "in": ["management", { "var": "this.groups" }] }
           expr:
             with:
               bindings:

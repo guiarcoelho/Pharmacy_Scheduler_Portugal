@@ -1,6 +1,7 @@
 shifts:
   # Shifts define:
   # - time window (start/end, and optional clock_end for rest rules)
+  # - optional unpaid_break_minutes (subtracted from paid minutes)
   # - coverage bounds (min/max workers needed)
   # - JSONLogic `allowed_when` that decides if the shift exists on a given day
   # - optional `requires_worker_caps` matched against worker `caps`
@@ -13,8 +14,10 @@ shifts:
     name: "Manhã (Morning)"
     start: "08:30"
     end: "17:30"
-    labels: [weekday, normal, fairness]
-    coverage: { min: 1}
+    unpaid_break_minutes: 60
+    labels: [weekday, normal, soft_fill, fairness]
+    coverage: { min: 2, max: 3}
+    soft_fill_penalty: 3500
     allowed_when:
       and:
         - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
@@ -25,6 +28,7 @@ shifts:
     name: "Intermédio (Intermediate)"
     start: "10:30"
     end: "19:30"
+    unpaid_break_minutes: 60
     labels: [weekday, normal, soft_fill, fairness]
     coverage: { min: 0, max: 1}
     soft_fill_penalty: 3500
@@ -38,6 +42,7 @@ shifts:
     name: "Tarde (Afternoon)"
     start: "11:30"
     end: "20:30"
+    unpaid_break_minutes: 60
     labels: [weekday, normal, fairness]
     coverage: { min: 2}
     allowed_when:
@@ -51,6 +56,7 @@ shifts:
     name: "Manhã Weekend"
     start: "08:30"
     end: "15:30"
+    unpaid_break_minutes: 60
     labels: [weekend, normal, fairness]
     coverage: { min: 1, max: 1}
     allowed_when:
@@ -65,6 +71,7 @@ shifts:
     name: "Intermédio Weekend"
     start: "10:30"
     end: "17:30"
+    unpaid_break_minutes: 60
     labels: [weekend, normal, fairness]
     coverage: { min: 1, max: 1}
     allowed_when:
@@ -94,6 +101,7 @@ shifts:
     name: "Manhã Serviço"
     start: "09:00"
     end: "18:00"
+    unpaid_break_minutes: 60
     labels: [weekday, service, fairness]
     coverage: { min: 1, max: 2}
     allowed_when:
@@ -106,8 +114,9 @@ shifts:
     name: "Intermédio Serviço"
     start: "10:00"
     end: "19:00"
+    unpaid_break_minutes: 60
     labels: [weekday, service, fairness]
-    coverage: { min: 1, max: 1}
+    coverage: { min: 1, max: 2}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }
@@ -131,6 +140,7 @@ shifts:
     name: "Tarde Extra Serviço"
     start: "13:00"
     end: "22:00"
+    unpaid_break_minutes: 60
     labels: [weekday, service, late, fairness]
     coverage: { min: 1, max: 1}
     allowed_when:
@@ -157,6 +167,7 @@ shifts:
     name: "Manhã Serviço Weekend"
     start: "08:30"
     end: "13:30"
+    unpaid_break_minutes: 60
     labels: [weekend, service, fairness]
     coverage: { min: 1, max: 1}
     allowed_when:
@@ -215,6 +226,7 @@ shifts:
     name: "Fim de Semana Serviço (Extra)"
     start: "09:30"
     end: "16:30"
+    unpaid_break_minutes: 60
     labels: [weekend, service, extra, fairness]
     coverage: { min: 1, max: 1}
     allowed_when:

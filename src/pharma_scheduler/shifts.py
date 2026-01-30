@@ -26,13 +26,15 @@ class Shift:
     coverage_min: int
     coverage_max: int | None
     soft_fill_penalty: int
+    unpaid_break_minutes: int
     allowed_when: dict | None
     requires_worker_caps: Set[str]
 
     @property
     def paid_minutes(self) -> int:
         """Calculate paid duration in minutes."""
-        return self._calculate_minutes(self.start, self.end)
+        minutes = self._calculate_minutes(self.start, self.end)
+        return max(0, minutes - self.unpaid_break_minutes)
 
     @property
     def clock_minutes(self) -> int:
@@ -95,6 +97,7 @@ class ShiftManager:
                 coverage_min=int(coverage['min']),
                 coverage_max=coverage_max,
                 soft_fill_penalty=int(s.get('soft_fill_penalty', 0)),
+                unpaid_break_minutes=int(s.get('unpaid_break_minutes', 0)),
                 allowed_when=s.get('allowed_when'),
                 requires_worker_caps=set(s.get('requires_worker_caps', [])),
             )

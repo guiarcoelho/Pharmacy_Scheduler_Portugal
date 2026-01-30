@@ -1,6 +1,8 @@
 groups:
   - id: core
     description: Core staff
+  - id: management
+    description: Management staff
   - id: service_extra
     description: Extra staff for service weekends
 
@@ -39,8 +41,8 @@ workers:
 
   - id: F
     name: Worker F
-    groups: [core]
-    caps: [night_capable]
+    groups: [management]
+    caps: []
     allowed_when:
       and:
         - { "in": [ { "var": "shift.code" }, ["M", "MS"] ] }
