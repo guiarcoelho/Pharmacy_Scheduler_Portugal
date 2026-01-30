@@ -24,7 +24,7 @@ class Shift:
     clock_end: time  # For rest calculation (may differ from end)
     tags: Set[str]
     coverage_min: int
-    coverage_max: int
+    coverage_max: int | None
     soft_fill_penalty: int
     allowed_when: dict | None
     requires_worker_caps: Set[str]
@@ -81,6 +81,10 @@ class ShiftManager:
             clock_end_str = s.get('clock_end', s['end'])
             clock_end = time.fromisoformat(clock_end_str)
 
+            coverage = s['coverage']
+            coverage_max_raw = coverage.get('max')
+            coverage_max = int(coverage_max_raw) if coverage_max_raw is not None else None
+
             shift = Shift(
                 code=s['code'],
                 name=s['name'],
@@ -88,8 +92,8 @@ class ShiftManager:
                 end=end,
                 clock_end=clock_end,
                 tags=set(s.get('labels', [])),
-                coverage_min=int(s['coverage']['min']),
-                coverage_max=int(s['coverage']['max']),
+                coverage_min=int(coverage['min']),
+                coverage_max=coverage_max,
                 soft_fill_penalty=int(s.get('soft_fill_penalty', 0)),
                 allowed_when=s.get('allowed_when'),
                 requires_worker_caps=set(s.get('requires_worker_caps', [])),
@@ -108,7 +112,11 @@ class ShiftManager:
         return {
             "code": shift.code,
             "labels": sorted(shift.tags),
-            "coverage": {"min": shift.coverage_min, "max": shift.coverage_max},
+            "coverage": {
+                "min": shift.coverage_min,
+                "max": shift.coverage_max,
+                "has_max": shift.coverage_max is not None,
+            },
             "soft_fill_penalty": shift.soft_fill_penalty,
         }
 

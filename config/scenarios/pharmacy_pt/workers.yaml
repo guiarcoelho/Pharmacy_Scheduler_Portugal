@@ -41,14 +41,15 @@ workers:
     name: Worker F
     groups: [core]
     caps: [night_capable]
+    allowed_when:
+      and:
+        - { "in": [ { "var": "shift.code" }, ["M", "MS"] ] }
 
   - id: G
-    name: Worker F
+    name: Worker G
     groups: [service_extra]
     caps: [service_extra]
     # Restrict worker F to only work on service weekends, and only on MSW/FSW.
     allowed_when:
       and:
-        - { "in": ["service", { "var": "day.special_tags" }] }
         - { "in": [ { "var": "shift.code" }, ["MSW", "FSW"] ] }
-        - { "in": [ { "var": "day.weekday" }, [5,6] ] }

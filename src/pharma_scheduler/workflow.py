@@ -41,17 +41,16 @@ def check_configuration(config_path: str) -> int:
         calendar_cfg = config["calendar"].get("calendar", config["calendar"])
         report_start = datetime.fromisoformat(calendar_cfg["report_start"]).date()
         report_end = datetime.fromisoformat(calendar_cfg["report_end"]).date()
-        buffer_days = calendar_cfg.get("buffer_days", 14)
+        buffer_days = calendar_cfg.get("buffer_days", 7)
         locale = calendar_cfg.get("holiday_locale", "PT")
 
         print(f"\n✓ Report period: {report_start} to {report_end}")
         print(f"  Duration: {(report_end - report_start).days + 1} days")
-
         special_days = load_special_days_data(config.get("special_days", {}))
-        all_dates = [
-            report_start + timedelta(days=i)
-            for i in range((report_end - report_start).days + 1 + buffer_days)
-        ]
+        solve_start = report_start - timedelta(days=buffer_days)
+        solve_end = report_end + timedelta(days=buffer_days)
+        total_days = (solve_end - solve_start).days + 1
+        all_dates = [solve_start + timedelta(days=i) for i in range(total_days)]
         calendar = Calendar(
             report_start=report_start,
             report_end=report_end,
@@ -128,13 +127,16 @@ def solve(
 
     report_start = datetime.fromisoformat(calendar_cfg["report_start"]).date()
     report_end = datetime.fromisoformat(calendar_cfg["report_end"]).date()
-    buffer_days = calendar_cfg.get("buffer_days", 14)
+    buffer_days = calendar_cfg.get("buffer_days", 7)
     locale = calendar_cfg.get("holiday_locale", "PT")
 
     print("Building calendar...")
     special_days = load_special_days_data(config.get("special_days", {}))
+    solve_start = report_start - timedelta(days=buffer_days)
+    solve_end = report_end + timedelta(days=buffer_days)
+    total_days = (solve_end - solve_start).days + 1
     special_tags = build_special_tag_index(
-        dates=[report_start + timedelta(days=i) for i in range((report_end - report_start).days + 1 + buffer_days)],
+        dates=[solve_start + timedelta(days=i) for i in range(total_days)],
         specials=special_days,
     )
     calendar = Calendar(
@@ -243,11 +245,14 @@ def explain(*, config_path: str, out_dir: str, target_date: str) -> int:
         calendar_cfg = config["calendar"].get("calendar", config["calendar"])
         report_start = datetime.fromisoformat(calendar_cfg["report_start"]).date()
         report_end = datetime.fromisoformat(calendar_cfg["report_end"]).date()
-        buffer_days = calendar_cfg.get("buffer_days", 14)
+        buffer_days = calendar_cfg.get("buffer_days", 7)
         locale = calendar_cfg.get("holiday_locale", "PT")
         special_days = load_special_days_data(config.get("special_days", {}))
+        solve_start = report_start - timedelta(days=buffer_days)
+        solve_end = report_end + timedelta(days=buffer_days)
+        total_days = (solve_end - solve_start).days + 1
         special_tags = build_special_tag_index(
-            dates=[report_start + timedelta(days=i) for i in range((report_end - report_start).days + 1 + buffer_days)],
+            dates=[solve_start + timedelta(days=i) for i in range(total_days)],
             specials=special_days,
         )
 

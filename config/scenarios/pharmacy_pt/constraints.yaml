@@ -1,5 +1,17 @@
 rulebook_version: 1
 
+windows:
+  weekdays_same_week:
+    anchor: week_monday
+    start_offset: 0
+    end_offset: 4
+    filter: weekdays_only
+  weekdays_week_of_and_after:
+    anchor: week_monday
+    start_offset: 0
+    end_offset: 11
+    filter: weekdays_only
+
 fairness_items:
   - id: weekend_minutes
     metric:
@@ -9,7 +21,7 @@ fairness_items:
           dims:
             worker: { from: "i.worker" }
         attr: "shift.paid_minutes"
-    penalty_per_unit: 10
+    penalty_per_unit: 30
 
   - id: holiday_minutes
     metric:
@@ -19,7 +31,7 @@ fairness_items:
           dims:
             worker: { from: "i.worker" }
         attr: "shift.paid_minutes"
-    penalty_per_unit: 5
+    penalty_per_unit: 50
 
   - id: shift_counts
     per_shift:
@@ -31,7 +43,15 @@ fairness_items:
             worker: { from: "i.worker" }
           where:
             "==": [ { "var": "shift.code" }, { "var": "i.shift.code" } ]
-    penalty_per_unit: 50
+    penalty_per_unit: 5
+
+  - id: total_shift_counts
+    metric:
+      count_assignments:
+        select:
+          dims:
+            worker: { from: "i.worker" }
+    penalty_per_unit: 15
 
 rules:
   - id: one_shift_per_day
@@ -63,7 +83,12 @@ rules:
               shift: { from: "i.shift" }
     hard:
       - { lhs: { ref: "assigned" }, op: ">=", rhs: { var: "i.shift.coverage.min" } }
-      - { lhs: { ref: "assigned" }, op: "<=", rhs: { var: "i.shift.coverage.max" } }
+      - only_if:
+          jsonlogic:
+            "==": [ { "var": "i.shift.coverage.has_max" }, true ]
+        lhs: { ref: "assigned" }
+        op: "<="
+        rhs: { var: "i.shift.coverage.max" }
 
   - id: soft_fill_to_shift_max
     doc: "Soft-fill to max for any shift labeled soft_fill."
@@ -85,6 +110,9 @@ rules:
             sub:
               - { var: "i.shift.coverage.max" }
               - { ref: "assigned" }
+        only_if:
+          jsonlogic:
+            "==": [ { "var": "i.shift.coverage.has_max" }, true ]
         penalty_per_unit: { var: "i.shift.soft_fill_penalty" }
 
   - id: min_daily_rest
@@ -229,7 +257,7 @@ rules:
                   op: ">="
                   lhs: { ref: "next_sat" }
                   rhs: { const: 1 }
-        penalty_per_unit: 3000
+        penalty_per_unit: 5000
 
   - id: sunday_comp_delayed_penalty
     doc: "Penalty if Sunday worked and week1 weekdays are fully worked."

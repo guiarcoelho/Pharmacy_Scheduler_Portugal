@@ -90,6 +90,42 @@ That tag can then be referenced in JSONLogic (`day.tags`) and in rulebook filter
 
 ## 7) Rulebook reference (constraints.yaml)
 
+### Window definitions (day_range.window)
+Windows can now be defined in config instead of being hard-coded in Python.
+Add a `windows:` section in `constraints.yaml` and reference it by name:
+
+```yaml
+windows:
+  weekdays_same_week:
+    anchor: week_monday
+    start_offset: 0
+    end_offset: 4
+    filter: weekdays_only
+
+rules:
+  - id: example
+    let:
+      days:
+        count_assignments:
+          select:
+            day_range: { from: "i.day", window: "weekdays_same_week" }
+            dims:
+              worker: { from: "i.worker" }
+```
+
+You can also use inline windows:
+
+```yaml
+day_range:
+  from: "i.day"
+  window:
+    anchor: date
+    start_offset: -3
+    end_offset: 3
+    filter: weekdays_only
+```
+
+
 The rulebook is the single configuration file that defines *all* scheduling rules:
 
 - **Hard constraints**: must always hold (otherwise the model is infeasible)

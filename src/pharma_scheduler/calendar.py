@@ -28,7 +28,7 @@ class Calendar:
         Args:
             report_start: First day of report period
             report_end: Last day of report period
-            buffer_days: Extra days after report_end for Sunday compensation
+            buffer_days: Extra days before/after report range for constraints
             locale: Country code for holidays
             special_tags_by_date: mapping date -> set of special tags
         """
@@ -37,8 +37,8 @@ class Calendar:
         self.buffer_days = buffer_days
         self.special_tags_by_date = special_tags_by_date or {}
 
-        # Generate full date range (report + buffer)
-        self.solve_start = report_start
+        # Generate full date range (report + buffer before/after)
+        self.solve_start = report_start - timedelta(days=buffer_days)
         self.solve_end = report_end + timedelta(days=buffer_days)
 
         # Generate all dates

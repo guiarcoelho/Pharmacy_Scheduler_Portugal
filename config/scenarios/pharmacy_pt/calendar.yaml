@@ -3,8 +3,8 @@ calendar:
   report_start: "2026-03-01"
   report_end: "2026-03-31"
 
-  # Extra days after report_end included in the solve horizon.
-  # Used by constraints that look "after" the report (e.g., Sunday compensation).
+  # Extra days before/after report range included in the solve horizon.
+  # Used by constraints that look across report boundaries (e.g., Sunday compensation).
   buffer_days: 7
 
   # Holiday calendar for tagging days as bank holidays.

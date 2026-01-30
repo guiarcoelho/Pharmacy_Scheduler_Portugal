@@ -13,9 +13,8 @@ shifts:
     name: "Manhã (Morning)"
     start: "08:30"
     end: "17:30"
-    labels: [weekday, normal, soft_fill, fairness]
-    coverage: { min: 1, max: 2 }
-    soft_fill_penalty: 3500
+    labels: [weekday, normal, fairness]
+    coverage: { min: 1}
     allowed_when:
       and:
         - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
@@ -27,7 +26,7 @@ shifts:
     start: "10:30"
     end: "19:30"
     labels: [weekday, normal, soft_fill, fairness]
-    coverage: { min: 0, max: 1 }
+    coverage: { min: 0, max: 1}
     soft_fill_penalty: 3500
     allowed_when:
       and:
@@ -40,7 +39,7 @@ shifts:
     start: "11:30"
     end: "20:30"
     labels: [weekday, normal, fairness]
-    coverage: { min: 2, max: 2 }
+    coverage: { min: 2}
     allowed_when:
       and:
         - { "in": [ { "var": "day.weekday" }, [0,1,2,3,4] ] }
@@ -53,7 +52,7 @@ shifts:
     start: "08:30"
     end: "15:30"
     labels: [weekend, normal, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "or": [
@@ -67,7 +66,7 @@ shifts:
     start: "10:30"
     end: "17:30"
     labels: [weekend, normal, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "or": [
@@ -81,7 +80,7 @@ shifts:
     start: "16:30"
     end: "20:30"
     labels: [weekend, normal, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "or": [
@@ -96,7 +95,7 @@ shifts:
     start: "09:00"
     end: "18:00"
     labels: [weekday, service, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 2}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }
@@ -108,7 +107,7 @@ shifts:
     start: "10:00"
     end: "19:00"
     labels: [weekday, service, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }
@@ -121,7 +120,7 @@ shifts:
     end: "00:00"
     clock_end: "23:59"
     labels: [weekday, service, late, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }
@@ -133,7 +132,7 @@ shifts:
     start: "13:00"
     end: "22:00"
     labels: [weekday, service, late, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }
@@ -145,7 +144,7 @@ shifts:
     start: "00:00"
     end: "08:30"
     labels: [weekday, service, night, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     requires_worker_caps: [night_capable]
     allowed_when:
       and:
@@ -159,7 +158,7 @@ shifts:
     start: "08:30"
     end: "13:30"
     labels: [weekend, service, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }
@@ -173,7 +172,7 @@ shifts:
     start: "14:00"
     end: "22:00"
     labels: [weekend, service, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }
@@ -188,7 +187,7 @@ shifts:
     end: "00:00"
     clock_end: "23:59"
     labels: [weekend, service, late, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }
@@ -202,7 +201,7 @@ shifts:
     start: "00:00"
     end: "08:30"
     labels: [weekend, service, night, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     requires_worker_caps: [night_capable]
     allowed_when:
       and:
@@ -217,7 +216,7 @@ shifts:
     start: "09:30"
     end: "16:30"
     labels: [weekend, service, extra, fairness]
-    coverage: { min: 1, max: 1 }
+    coverage: { min: 1, max: 1}
     allowed_when:
       and:
         - { "in": ["service", { "var": "day.special_tags" }] }

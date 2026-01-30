@@ -587,30 +587,35 @@ class RulebookCompiler:
             days = [d for d in days if self._day_filter(filter_name, d)]
         return days
 
-    def _window_days(self, window_name: str | None, anchor: date) -> List[date]:
-        if window_name is None:
+    def _window_days(self, window_spec: Any, anchor: date) -> List[date]:
+        if window_spec is None:
             return [anchor]
-        if window_name == "weekdays_same_week":
-            monday = self.calendar.get_week_id(anchor)
-            return [
-                d
-                for d in (monday + timedelta(days=i) for i in range(5))
-                if d in self.calendar.dates
+        if isinstance(window_spec, dict):
+            start_offset = window_spec.get("start_offset")
+            end_offset = window_spec.get("end_offset")
+            if start_offset is None or end_offset is None:
+                raise ValueError("window spec requires start_offset and end_offset")
+            anchor_mode = window_spec.get("anchor", "date")
+            if anchor_mode == "week_monday":
+                anchor_base = self.calendar.get_week_id(anchor)
+            elif anchor_mode == "date":
+                anchor_base = anchor
+            else:
+                raise ValueError(f"Unknown window anchor: {anchor_mode}")
+            days = [
+                anchor_base + timedelta(days=i)
+                for i in range(int(start_offset), int(end_offset) + 1)
+                if anchor_base + timedelta(days=i) in self.calendar.dates
             ]
-        if window_name == "weekdays_week_of_and_after":
-            monday = self.calendar.get_week_id(anchor)
-            days = []
-            for i in range(5):
-                d = monday + timedelta(days=i)
-                if d in self.calendar.dates:
-                    days.append(d)
-            monday_next = monday + timedelta(days=7)
-            for i in range(5):
-                d = monday_next + timedelta(days=i)
-                if d in self.calendar.dates:
-                    days.append(d)
+            filter_name = window_spec.get("filter")
+            if filter_name:
+                days = [d for d in days if self._day_filter(filter_name, d)]
             return days
-        raise ValueError(f"Unknown window: {window_name}")
+        if isinstance(window_spec, str):
+            window_defs = self.rulebook_data.get("windows", {}) or {}
+            if window_spec in window_defs:
+                return self._window_days(window_defs[window_spec], anchor)
+        raise ValueError(f"Unknown window: {window_spec}")
 
     def _day_filter(self, name: str, d: date) -> bool:
         if name == "weekdays_only":

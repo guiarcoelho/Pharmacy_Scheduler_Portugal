@@ -110,8 +110,9 @@ def main() -> int:
         cal = yaml.safe_load(f) or {}
 
     calendar = cal.get("calendar", cal)
+    report_start = datetime.fromisoformat(calendar["report_start"]).date()
     report_end = datetime.fromisoformat(calendar["report_end"]).date()
-    buffer_days = int(calendar.get("buffer_days", 0))
+    buffer_days = int(calendar.get("buffer_days", 7))
     service_cycle = calendar.get("service_cycle", {})
 
     anchor_monday = datetime.fromisoformat(service_cycle["anchor_monday"]).date()
@@ -120,12 +121,13 @@ def main() -> int:
     include_following_monday = bool(service_cycle.get("include_following_monday", True))
 
     # Important: generate through the *solve horizon*, not just the report end.
-    # The solver may include buffer days for constraints, and those days need the
+    # The solver includes buffer days before/after, and those days need the
     # same special tags for shift existence / weekend coupling to remain consistent.
+    solve_start = report_start - timedelta(days=buffer_days)
     solve_end = report_end + timedelta(days=buffer_days)
 
     dates = []
-    current = anchor_monday
+    current = solve_start
     while current <= solve_end:
         if _is_service_day(
             current,
