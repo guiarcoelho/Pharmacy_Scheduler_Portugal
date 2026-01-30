@@ -69,23 +69,27 @@ def check_configuration(config_path: str) -> int:
         )
 
         workers = [w["id"] for w in worker_defs]
-        core_workers = [
-            w["id"]
-            for w in worker_defs
-            if "core" in w.get("groups", [])
-        ]
-        night_capable = [
-            w["id"]
-            for w in worker_defs
-            if "night_capable" in w.get("caps", [])
-        ]
+        group_defs = config["workers"].get("groups", []) or []
+        group_ids = [g.get("id") for g in group_defs if g.get("id")]
+        groups_map = {gid: [] for gid in group_ids}
+        caps_map = {}
+        for w in worker_defs:
+            for g in w.get("groups", []) or []:
+                groups_map.setdefault(g, []).append(w["id"])
+            for cap in w.get("caps", []) or []:
+                caps_map.setdefault(cap, []).append(w["id"])
 
         print(f"\n✓ Workers configured: {len(workers)}")
-        print(f"  Core: {', '.join(core_workers)}")
-        print(f"  Night-capable: {', '.join(night_capable)}")
-
-        if len(night_capable) == 0:
-            print("  ⚠ WARNING: No night-capable workers (NS/NSW will be uncovered)")
+        if groups_map:
+            print("  Groups:")
+            for gid, members in groups_map.items():
+                members_txt = ', '.join(members) if members else '-'
+                print(f"    {gid}: {members_txt}")
+        if caps_map:
+            print("  Caps:")
+            for cap, members in caps_map.items():
+                members_txt = ', '.join(members) if members else '-'
+                print(f"    {cap}: {members_txt}")
         if warnings:
             print("\n⚠ Vacation warnings:")
             for warning in warnings:
@@ -152,10 +156,27 @@ def solve(
         solve_dates=calendar.dates,
     )
     worker_ids = [w["id"] for w in workers]
-    core_workers = [w["id"] for w in workers if "core" in w.get("groups", [])]
+    group_defs = config["workers"].get("groups", []) or []
+    group_ids = [g.get("id") for g in group_defs if g.get("id")]
+    groups_map = {gid: [] for gid in group_ids}
+    caps_map = {}
+    for w in workers:
+        for g in w.get("groups", []) or []:
+            groups_map.setdefault(g, []).append(w["id"])
+        for cap in w.get("caps", []) or []:
+            caps_map.setdefault(cap, []).append(w["id"])
 
     print(f"Workers: {', '.join(worker_ids)}")
-    print(f"Core workers: {', '.join(core_workers)}")
+    if groups_map:
+        print("Groups:")
+        for gid, members in groups_map.items():
+            members_txt = ', '.join(members) if members else '-'
+            print(f"  {gid}: {members_txt}")
+    if caps_map:
+        print("Caps:")
+        for cap, members in caps_map.items():
+            members_txt = ', '.join(members) if members else '-'
+            print(f"  {cap}: {members_txt}")
     if warnings:
         print("\n⚠ Vacation warnings:")
         for warning in warnings:

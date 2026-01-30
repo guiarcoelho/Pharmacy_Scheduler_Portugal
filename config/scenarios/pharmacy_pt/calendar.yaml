@@ -1,7 +1,7 @@
 calendar:
   # Report window (what you want to schedule).
-  report_start: "2026-02-01"
-  report_end: "2026-06-30"
+  report_start: "2026-03-01"
+  report_end: "2026-03-31"
 
   # Extra days after report_end included in the solve horizon.
   # Used by constraints that look "after" the report (e.g., Sunday compensation).
