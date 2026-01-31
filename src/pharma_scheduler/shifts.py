@@ -115,6 +115,8 @@ class ShiftManager:
         return {
             "code": shift.code,
             "labels": sorted(shift.tags),
+            "allowed_when": shift.allowed_when,
+            "requires_worker_caps": sorted(shift.requires_worker_caps),
             "coverage": {
                 "min": shift.coverage_min,
                 "max": shift.coverage_max,

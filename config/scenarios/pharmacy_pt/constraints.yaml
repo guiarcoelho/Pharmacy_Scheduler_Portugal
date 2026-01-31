@@ -363,8 +363,8 @@ rules:
             dims:
               worker: { from: "i.worker" }
           attr: "shift.paid_minutes"
-      available_days:
-        count_over:
+      eligible_days:
+        count_if:
           iter:
             var: d
             type: day
@@ -375,12 +375,35 @@ rules:
                     in:
                       - { "var": "this.date" }
                       - { "var": "i.worker.vacation_days" }
+          expr:
+            exists_over:
+              iter:
+                var: s
+                type: shift
+              expr:
+                and:
+                  - jsonlogic_eval:
+                      expr: "i.s.allowed_when"
+                      bindings:
+                        day: "i.d"
+                        shift: "i.s"
+                      default: true
+                  - jsonlogic_eval:
+                      expr: "i.worker.allowed_when"
+                      bindings:
+                        day: "i.d"
+                        shift: "i.s"
+                        worker: "i.worker"
+                      default: true
+                  - caps_match:
+                      worker: "i.worker"
+                      shift: "i.s"
     hard:
       - lhs:
           mul: [ { ref: "worked_minutes" }, { const: 7 } ]
         op: ">="
         rhs:
-          mul: [ { const: 2400 }, { ref: "available_days" } ]
+          mul: [ { const: 2400 }, { ref: "eligible_days" } ]
 
   - id: fairness_generic
     doc: "Balance metrics listed in fairness_items across core/management workers."

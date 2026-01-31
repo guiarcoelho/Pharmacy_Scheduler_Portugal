@@ -140,6 +140,39 @@ filters:
 Filters are referenced by name in `day_range.filter` and window definitions.
 All filters must be defined in `constraints.yaml`.
 
+### Rulebook DSL extensions
+To support eligibility-based constraints, the rulebook DSL now includes:
+
+```yaml
+# Evaluate stored JSONLogic with explicit bindings.
+jsonlogic_eval:
+  expr: "i.shift.allowed_when"   # path to JSONLogic in the current env
+  bindings:
+    day: "i.day"
+    shift: "i.shift"
+    worker: "i.worker"
+  default: true
+
+# Check worker caps against shift requirements.
+caps_match:
+  worker: "i.worker"
+  shift: "i.shift"
+
+# Quantifier over an iterator (true if any item matches).
+exists_over:
+  iter: { var: s, type: shift }
+  expr:
+    jsonlogic:
+      "==": [ { "var": "i.s.code" }, "M" ]
+
+# Count items where a rulebook expression is true.
+count_if:
+  iter: { var: d, type: day }
+  expr:
+    jsonlogic:
+      "==": [ { "var": "i.d.is_weekend" }, true ]
+```
+
 
 The rulebook is the single configuration file that defines *all* scheduling rules:
 

@@ -408,6 +408,18 @@ class RulebookCompiler:
             iter_def = expr["count_over"]["iter"]
             items = self._iter_items(iter_def, env)
             return len(items)
+        if "count_if" in expr:
+            payload = expr["count_if"]
+            iter_def = payload["iter"]
+            inner = payload["expr"]
+            total = 0
+            items = self._iter_items(iter_def, env)
+            var_name = iter_def["var"]
+            for item in items:
+                env["i"][var_name] = item
+                total += self._bool_to_int(self._compile_bool(inner, env, let_values))
+            env["i"].pop(var_name, None)
+            return total
         if "range_size" in expr:
             spec = expr["range_size"]
             days = self._resolve_day_range(spec, env)
@@ -423,6 +435,64 @@ class RulebookCompiler:
         if isinstance(expr, dict):
             if "jsonlogic" in expr:
                 return bool(self._eval_jsonlogic(expr["jsonlogic"], env))
+            if "jsonlogic_eval" in expr:
+                payload = expr["jsonlogic_eval"]
+                if not isinstance(payload, dict):
+                    payload = {"expr": payload}
+                logic = payload.get("logic")
+                if logic is None:
+                    expr_ref = payload.get("expr")
+                    if isinstance(expr_ref, dict) and "var" in expr_ref:
+                        logic = self._resolve_var(expr_ref["var"], env, let_values)
+                    elif isinstance(expr_ref, dict) and "ref" in expr_ref:
+                        logic = let_values.get(expr_ref["ref"])
+                    elif isinstance(expr_ref, str):
+                        logic = self._resolve_ref(expr_ref, env)
+                    else:
+                        logic = expr_ref
+                if logic is None:
+                    return bool(payload.get("default", True))
+                if isinstance(logic, bool):
+                    return logic
+                if not isinstance(logic, dict):
+                    return bool(logic)
+                bindings = payload.get("bindings", {})
+                view = self._build_env_view(env)
+                for key, ref in bindings.items():
+                    view[key] = self._resolve_ref(ref, env)
+                return bool(evaluate(logic, view))
+            if "caps_match" in expr:
+                payload = expr["caps_match"]
+                worker = self._resolve_ref(payload.get("worker"), env)
+                shift = self._resolve_ref(payload.get("shift"), env)
+                if not worker or not shift:
+                    return False
+                worker_caps = set(worker.get("caps", []))
+                required = set(shift.get("requires_worker_caps", []))
+                return required.issubset(worker_caps)
+            if "exists_over" in expr:
+                payload = expr["exists_over"]
+                iter_def = payload["iter"]
+                inner = payload["expr"]
+                items = self._iter_items(iter_def, env)
+                var_name = iter_def["var"]
+                literals = []
+                found_true = False
+                for item in items:
+                    env["i"][var_name] = item
+                    result = self._compile_bool(inner, env, let_values)
+                    if isinstance(result, bool):
+                        if result:
+                            found_true = True
+                            break
+                    else:
+                        literals.append(result)
+                env["i"].pop(var_name, None)
+                if found_true:
+                    return True
+                if not literals:
+                    return False
+                return self._bool_or(literals)
             if "with" in expr:
                 payload = expr["with"]
                 bindings = payload.get("bindings", {})
