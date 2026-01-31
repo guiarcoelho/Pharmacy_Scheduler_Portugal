@@ -23,7 +23,8 @@ class StatisticsCalculator:
         self.calendar = model.calendar
         # `SchedulingModel.workers` is a list of worker dicts in the new config-first
         # flow. Statistics are keyed by worker ID.
-        self.workers = getattr(model, "worker_ids", None) or [w["id"] for w in model.workers]
+        self.workers = getattr(model, "worker_ids", None) or [
+            w["id"] for w in model.workers]
 
     def calculate(self, solution: pd.DataFrame) -> pd.DataFrame:
         """Calculate per-worker statistics."""
@@ -38,10 +39,11 @@ class StatisticsCalculator:
 
             # Basic metrics
             total_minutes = report_schedule['paid_minutes'].sum()
-            
+
             # Helper to sum minutes by filter
-            def sum_mins(mask): return report_schedule[mask]['paid_minutes'].sum()
-            
+            def sum_mins(
+                mask): return report_schedule[mask]['paid_minutes'].sum()
+
             weekend_minutes = sum_mins(report_schedule['is_weekend'])
             sat_minutes = sum_mins(report_schedule['is_saturday'])
             sun_minutes = sum_mins(report_schedule['is_sunday'])
@@ -52,15 +54,18 @@ class StatisticsCalculator:
             days_off = len(self.calendar.get_report_dates()) - days_worked
 
             # Shift counts
-            shift_counts = {s_code: 0 for s_code in self.model.shift_manager.shifts_by_code.keys()}
-            shift_counts.update(report_schedule['shift'].value_counts().to_dict())
+            shift_counts = {
+                s_code: 0 for s_code in self.model.shift_manager.shifts_by_code.keys()}
+            shift_counts.update(
+                report_schedule['shift'].value_counts().to_dict())
 
             # Weekly hours and excess (full week)
             weeks = self.calendar.get_all_weeks()
             total_excess = 0
             for week in weeks:
                 week_days = self.calendar.get_days_in_week(week)
-                week_min = report_schedule[report_schedule['date'].isin(week_days)]['paid_minutes'].sum()
+                week_min = report_schedule[report_schedule['date'].isin(
+                    week_days)]['paid_minutes'].sum()
                 total_excess += max(0, week_min - 2400)
 
             # Full weekends off
@@ -109,10 +114,11 @@ class SchedulingSolver:
         self.solver.parameters.max_time_in_seconds = solver_config.get(
             'time_limit_seconds', 300)
         self.solver.parameters.num_search_workers = solver_config.get(
-            'num_search_workers', 8)
+            'num_search_workers', 0)
         self.solver.parameters.log_search_progress = solver_config.get(
             'log_search_progress', False)
-        self.print_response_stats = solver_config.get('print_response_stats', False)
+        self.print_response_stats = solver_config.get(
+            'print_response_stats', False)
         random_seed = solver_config.get('random_seed')
         if random_seed is not None:
             self.solver.parameters.random_seed = int(random_seed)

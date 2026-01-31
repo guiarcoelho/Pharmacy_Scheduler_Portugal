@@ -32,7 +32,7 @@ fairness_items:
           dims:
             worker: { from: "i.worker" }
         attr: "shift.paid_minutes"
-    penalty_per_unit: 30
+    penalty_per_unit: 5
 
   - id: holiday_minutes
     active: true
@@ -43,7 +43,7 @@ fairness_items:
           dims:
             worker: { from: "i.worker" }
         attr: "shift.paid_minutes"
-    penalty_per_unit: 50
+    penalty_per_unit: 10
 
   - id: shift_counts
     active: true
@@ -56,7 +56,7 @@ fairness_items:
             worker: { from: "i.worker" }
           where:
             "==": [ { "var": "shift.code" }, { "var": "i.shift.code" } ]
-    penalty_per_unit: 5
+    penalty_per_unit: 50
 
   - id: total_shift_counts
     active: true
@@ -65,7 +65,7 @@ fairness_items:
         select:
           dims:
             worker: { from: "i.worker" }
-    penalty_per_unit: 15
+    penalty_per_unit: 150
 
 rules:
   - id: one_shift_per_day
@@ -287,7 +287,7 @@ rules:
                   op: ">="
                   lhs: { ref: "next_sat" }
                   rhs: { const: 1 }
-        penalty_per_unit: 5000
+        penalty_per_unit: 7000
 
   - id: sunday_comp_delayed_penalty
     active: true
@@ -327,7 +327,7 @@ rules:
                   op: "=="
                   lhs: { ref: "week1_work" }
                   rhs: { const: 5 }
-        penalty_per_unit: 800
+        penalty_per_unit: 1000
 
   - id: weekly_no_day_off_penalty
     active: true
@@ -399,7 +399,7 @@ rules:
             sub:
               - { ref: "min_minutes" }
               - { ref: "worked_minutes" }
-        penalty_per_unit: 100
+        penalty_per_unit: 67
 
   - id: min_total_hours_hard
     active: true

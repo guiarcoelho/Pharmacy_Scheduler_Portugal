@@ -7,3 +7,5 @@ solver:
   log_search_progress: true
   # Print solver stats after solve.
   print_response_stats: true
+  # Seed to replicate results.
+  random_seed: 123
