@@ -59,6 +59,8 @@ class RulebookCompiler:
             self.rulebook_data = {}
             rules = rulebook or []
         for raw in rules:
+            if not raw.get("active", True):
+                continue
             self._apply_rule(raw)
 
     def _apply_rule(self, rule: dict):
@@ -233,6 +235,8 @@ class RulebookCompiler:
             raise ValueError(f"list iterator expects list at '{path}'")
         expanded: List[dict] = []
         for item in items:
+            if isinstance(item, dict) and not item.get("active", True):
+                continue
             if isinstance(item, dict) and "per_shift" in item:
                 expanded.extend(self._expand_per_shift_item(item))
             else:
