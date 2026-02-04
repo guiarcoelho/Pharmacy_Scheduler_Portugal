@@ -13,6 +13,7 @@ from .jsonlogic import evaluate
 
 @dataclass
 class AssignmentRecord:
+    """Encapsulates `AssignmentRecord` behavior and data."""
     worker_id: str
     worker: dict
     day: dict
@@ -23,6 +24,7 @@ class AssignmentRecord:
 
 
 class RulebookCompiler:
+    """Encapsulates `RulebookCompiler` behavior and data."""
     def __init__(
         self,
         *,
@@ -32,6 +34,7 @@ class RulebookCompiler:
         workers: List[dict],
         assignments: Dict,
     ):
+        """Initialize RulebookCompiler."""
         self.model = model
         self.calendar = calendar
         self.shift_manager = shift_manager
@@ -51,6 +54,7 @@ class RulebookCompiler:
         self._var_counter = 0
 
     def apply(self, rulebook: Iterable[dict] | dict):
+        """Execute `apply`."""
         if isinstance(rulebook, dict):
             self.rulebook_data = rulebook
             self._validate_filters()
@@ -64,6 +68,7 @@ class RulebookCompiler:
             self._apply_rule(raw)
 
     def _apply_rule(self, rule: dict):
+        """Internal helper for `_apply_rule`."""
         for_each = rule.get("for_each", []) or []
         for env in self._iter_envs(for_each):
             if self._skip_env(env):
@@ -96,6 +101,7 @@ class RulebookCompiler:
                 self.objective_terms.append(penalty * units)
 
     def _normalize_workers(self, workers: List[dict]) -> List[dict]:
+        """Internal helper for `_normalize_workers`."""
         normalized = []
         for w in workers:
             w = dict(w)
@@ -106,6 +112,7 @@ class RulebookCompiler:
         return normalized
 
     def _validate_filters(self) -> None:
+        """Internal helper for `_validate_filters`."""
         filters = self.rulebook_data.get("filters", {}) or {}
         if not isinstance(filters, dict):
             raise ValueError("filters must be a mapping of name -> JSONLogic")
@@ -118,6 +125,7 @@ class RulebookCompiler:
                 )
 
     def _build_day_items(self) -> List[dict]:
+        """Internal helper for `_build_day_items`."""
         items = []
         for d in self.calendar.dates:
             ctx = dict(self.calendar.get_day_context(d))
@@ -128,6 +136,7 @@ class RulebookCompiler:
         return items
 
     def _build_week_items(self) -> List[dict]:
+        """Internal helper for `_build_week_items`."""
         items = []
         for week_id in self.calendar.get_all_weeks():
             days = self.calendar.get_days_in_week(week_id)
@@ -142,6 +151,7 @@ class RulebookCompiler:
         return items
 
     def _build_shift_items(self) -> List[dict]:
+        """Internal helper for `_build_shift_items`."""
         items = []
         for shift in self.shift_manager.shifts:
             ctx = self.shift_manager._shift_ctx(shift)
@@ -153,6 +163,7 @@ class RulebookCompiler:
         return items
 
     def _build_assignment_records(self) -> List[AssignmentRecord]:
+        """Internal helper for `_build_assignment_records`."""
         records: List[AssignmentRecord] = []
         for (w_id, d, s_code), var in self.assignments.items():
             worker = next(w for w in self.workers if w["id"] == w_id)
@@ -172,6 +183,7 @@ class RulebookCompiler:
         return records
 
     def _index_records(self, key: str) -> Dict[Any, List[AssignmentRecord]]:
+        """Internal helper for `_index_records`."""
         index: Dict[Any, List[AssignmentRecord]] = {}
         for rec in self._assignment_records:
             value = getattr(rec, key)
@@ -179,9 +191,11 @@ class RulebookCompiler:
         return index
 
     def _iter_envs(self, for_each: List[dict]):
+        """Internal helper for `_iter_envs`."""
         env = {"i": {}}
 
         def walk(idx: int):
+            """Execute `walk`."""
             if idx >= len(for_each):
                 yield env
                 return
@@ -199,6 +213,7 @@ class RulebookCompiler:
             yield from walk(0)
 
     def _iter_items(self, iter_def: dict, env: dict) -> List[dict]:
+        """Internal helper for `_iter_items`."""
         iter_type = iter_def.get("type")
         if iter_type == "day":
             items = self._day_items
@@ -227,6 +242,7 @@ class RulebookCompiler:
         return filtered
 
     def _get_list_items(self, iter_def: dict) -> List[dict]:
+        """Internal helper for `_get_list_items`."""
         path = iter_def.get("from")
         if not path:
             raise ValueError("list iterator requires 'from'")
@@ -244,6 +260,7 @@ class RulebookCompiler:
         return expanded
 
     def _expand_per_shift_item(self, item: dict) -> List[dict]:
+        """Internal helper for `_expand_per_shift_item`."""
         per_shift = item.get("per_shift") or {}
         where = per_shift.get("where")
         expanded: List[dict] = []
@@ -259,6 +276,7 @@ class RulebookCompiler:
         return expanded
 
     def _get_shift_transitions(self, min_rest_hours: int) -> List[dict]:
+        """Internal helper for `_get_shift_transitions`."""
         if min_rest_hours not in self._transition_cache:
             pairs = self.shift_manager.get_forbidden_transitions(min_rest_hours)
             self._transition_cache[min_rest_hours] = [
@@ -267,6 +285,7 @@ class RulebookCompiler:
         return self._transition_cache[min_rest_hours]
 
     def _skip_env(self, env: dict) -> bool:
+        """Internal helper for `_skip_env`."""
         day = env["i"].get("day")
         shift = env["i"].get("shift")
         if day and shift:
@@ -278,6 +297,7 @@ class RulebookCompiler:
         return False
 
     def _add_comparison(self, lhs: Any, op: str, rhs: Any, only_if: Any):
+        """Internal helper for `_add_comparison`."""
         if isinstance(only_if, bool):
             enforce = None
         else:
@@ -300,6 +320,7 @@ class RulebookCompiler:
         raise ValueError(f"Unsupported comparison op: {op}")
 
     def _guard_units(self, units: Any, guard: Any):
+        """Internal helper for `_guard_units`."""
         ub = self._estimate_upper_bound(units, {}, {})
         var = self._new_int_var(0, ub, "guard")
         c1 = self.model.Add(var == units)
@@ -309,6 +330,7 @@ class RulebookCompiler:
         return var
 
     def _compile_int(self, expr: Any, env: dict, let_values: dict) -> Any:
+        """Internal helper for `_compile_int`."""
         if isinstance(expr, (int, float)):
             return int(expr)
         if isinstance(expr, bool):
@@ -432,6 +454,7 @@ class RulebookCompiler:
         return expr
 
     def _compile_bool(self, expr: Any, env: dict, let_values: dict) -> Any:
+        """Internal helper for `_compile_bool`."""
         if isinstance(expr, bool):
             return expr
         if expr is None:
@@ -545,18 +568,21 @@ class RulebookCompiler:
         return bool(expr)
 
     def _bool_and(self, literals: List[Any]):
+        """Internal helper for `_bool_and`."""
         b = self.model.NewBoolVar(self._var_name("and"))
         self.model.AddBoolAnd(literals).OnlyEnforceIf(b)
         self.model.AddBoolOr([lit.Not() for lit in literals]).OnlyEnforceIf(b.Not())
         return b
 
     def _bool_or(self, literals: List[Any]):
+        """Internal helper for `_bool_or`."""
         b = self.model.NewBoolVar(self._var_name("or"))
         self.model.AddBoolOr(literals).OnlyEnforceIf(b)
         self.model.AddBoolAnd([lit.Not() for lit in literals]).OnlyEnforceIf(b.Not())
         return b
 
     def _bool_to_int(self, cond: Any):
+        """Internal helper for `_bool_to_int`."""
         if isinstance(cond, bool):
             return int(cond)
         if isinstance(cond, cp_model.IntVar):
@@ -567,6 +593,7 @@ class RulebookCompiler:
         return b
 
     def _reify_comparison(self, lhs: Any, op: str, rhs: Any):
+        """Internal helper for `_reify_comparison`."""
         b = self.model.NewBoolVar(self._var_name("cmp"))
         if op == ">=":
             self.model.Add(lhs >= rhs).OnlyEnforceIf(b)
@@ -594,6 +621,7 @@ class RulebookCompiler:
         raise ValueError(f"Unsupported comparison op: {op}")
 
     def _select_records(self, select_spec: dict, env: dict) -> List[AssignmentRecord]:
+        """Internal helper for `_select_records`."""
         dims = select_spec.get("dims", {}) or {}
         day_range = select_spec.get("day_range")
         where = select_spec.get("where")
@@ -635,6 +663,7 @@ class RulebookCompiler:
         return records
 
     def _resolve_day(self, spec: dict, env: dict) -> date:
+        """Internal helper for `_resolve_day`."""
         source = spec.get("from")
         base = self._resolve_ref(source, env)
         if isinstance(base, dict) and "date_obj" in base:
@@ -656,6 +685,7 @@ class RulebookCompiler:
         raise ValueError(f"Unsupported day offset: {offset}")
 
     def _resolve_day_range(self, spec: dict, env: dict) -> List[date]:
+        """Internal helper for `_resolve_day_range`."""
         if "from" in spec:
             base = self._resolve_ref(spec["from"], env)
             if isinstance(base, dict) and "days" in base:
@@ -675,6 +705,7 @@ class RulebookCompiler:
         return days
 
     def _window_days(self, window_spec: Any, anchor: date) -> List[date]:
+        """Internal helper for `_window_days`."""
         if window_spec is None:
             return [anchor]
         if isinstance(window_spec, dict):
@@ -705,6 +736,7 @@ class RulebookCompiler:
         raise ValueError(f"Unknown window: {window_spec}")
 
     def _day_filter(self, name: str, d: date) -> bool:
+        """Internal helper for `_day_filter`."""
         filters = self.rulebook_data.get("filters", {}) or {}
         if name in filters:
             logic = filters[name]
@@ -715,6 +747,7 @@ class RulebookCompiler:
         raise ValueError(f"Unknown day filter: {name}")
 
     def _resolve_worker_id(self, spec: dict, env: dict) -> str:
+        """Internal helper for `_resolve_worker_id`."""
         base = self._resolve_ref(spec.get("from"), env)
         if isinstance(base, dict) and "id" in base:
             return base["id"]
@@ -723,6 +756,7 @@ class RulebookCompiler:
         raise ValueError(f"Unsupported worker reference: {spec}")
 
     def _resolve_shift_code(self, spec: dict, env: dict) -> str:
+        """Internal helper for `_resolve_shift_code`."""
         base = self._resolve_ref(spec.get("from"), env)
         if isinstance(base, dict) and "code" in base:
             return base["code"]
@@ -733,6 +767,7 @@ class RulebookCompiler:
         raise ValueError(f"Unsupported shift reference: {spec}")
 
     def _resolve_ref(self, ref: Any, env: dict) -> Any:
+        """Internal helper for `_resolve_ref`."""
         if ref is None:
             return None
         if isinstance(ref, dict):
@@ -742,17 +777,20 @@ class RulebookCompiler:
         return self._get_path(self._build_env_view(env), ref)
 
     def _resolve_var(self, path: str, env: dict, let_values: dict) -> Any:
+        """Internal helper for `_resolve_var`."""
         if path in let_values:
             return let_values[path]
         return self._get_path(self._build_env_view(env), path)
 
     def _build_env_view(self, env: dict) -> dict:
+        """Internal helper for `_build_env_view`."""
         view = {"i": env.get("i", {})}
         for key, value in env.get("i", {}).items():
             view[key] = value
         return view
 
     def _get_path(self, data: dict, path: str) -> Any:
+        """Internal helper for `_get_path`."""
         cur: Any = data
         for part in str(path).split("."):
             if isinstance(cur, dict) and part in cur:
@@ -762,6 +800,7 @@ class RulebookCompiler:
         return cur
 
     def _get_rulebook_path(self, path: str) -> Any:
+        """Internal helper for `_get_rulebook_path`."""
         cur: Any = self.rulebook_data
         for part in str(path).split("."):
             if isinstance(cur, dict) and part in cur:
@@ -771,13 +810,16 @@ class RulebookCompiler:
         return cur
 
     def _eval_jsonlogic(self, logic: Any, env: dict) -> Any:
+        """Internal helper for `_eval_jsonlogic`."""
         view = self._build_env_view(env)
         return evaluate(logic, view)
 
     def _get_attr(self, obj: dict, attr: str) -> Any:
+        """Internal helper for `_get_attr`."""
         return self._get_path(obj, attr.replace("shift.", ""))
 
     def _estimate_upper_bound(self, expr: Any, env: dict, let_values: dict) -> int:
+        """Internal helper for `_estimate_upper_bound`."""
         if isinstance(expr, (int, float, bool)):
             return int(abs(expr))
         if isinstance(expr, dict):
@@ -842,9 +884,11 @@ class RulebookCompiler:
         return 10_000_000
 
     def _new_int_var(self, lb: int, ub: int, prefix: str) -> cp_model.IntVar:
+        """Internal helper for `_new_int_var`."""
         name = self._var_name(prefix)
         return self.model.NewIntVar(lb, max(ub, lb), name)
 
     def _var_name(self, prefix: str) -> str:
+        """Internal helper for `_var_name`."""
         self._var_counter += 1
         return f"{prefix}_{self._var_counter}"

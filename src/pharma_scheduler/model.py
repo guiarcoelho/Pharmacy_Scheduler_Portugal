@@ -96,6 +96,7 @@ class SchedulingModel:
                 self._shift_codes_by_worker_day[w_id, d] = shift_codes
 
     def _worker_can_do_shift(self, worker: dict, shift, day_ctx: dict) -> bool:
+        """Internal helper for `_worker_can_do_shift`."""
         if not shift.requires_worker_caps.issubset(set(worker.get("caps", []))):
             return False
         allowed_when = worker.get("allowed_when")

@@ -329,6 +329,7 @@ def explain(*, config_path: str, out_dir: str, target_date: str) -> int:
 
 
 def _resolve_schedule_file_for_explain(*, out_dir: Path, target_date: date) -> Path:
+    """Internal helper for `_resolve_schedule_file_for_explain`."""
     files = find_schedule_window_files(out_dir)
     if files:
         covering = [

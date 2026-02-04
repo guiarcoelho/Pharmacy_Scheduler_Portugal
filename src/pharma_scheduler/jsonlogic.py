@@ -19,6 +19,7 @@ from typing import Any
 
 
 def _get_var(path: Any, data: dict, default: Any = None) -> Any:
+    """Internal helper for `_get_var`."""
     if path is None:
         return data
     if isinstance(path, list):
@@ -35,6 +36,7 @@ def _get_var(path: Any, data: dict, default: Any = None) -> Any:
 
 
 def evaluate(rule: Any, data: dict) -> Any:
+    """Execute `evaluate`."""
     if isinstance(rule, (int, float, str, bool)) or rule is None:
         return rule
     if isinstance(rule, list):

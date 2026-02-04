@@ -30,6 +30,7 @@ _WINDOW_SCHEDULE_RE = re.compile(
 
 
 def _extract_special_dates(schedule: pd.DataFrame) -> set:
+    """Internal helper for `_extract_special_dates`."""
     if "day_tags" not in schedule.columns:
         return set()
     special_dates = set()
@@ -40,6 +41,7 @@ def _extract_special_dates(schedule: pd.DataFrame) -> set:
 
 
 def _parse_date(raw):
+    """Internal helper for `_parse_date`."""
     if isinstance(raw, datetime):
         return raw.date()
     if isinstance(raw, date):
@@ -48,6 +50,7 @@ def _parse_date(raw):
 
 
 def _load_worker_vacations(path: Path) -> dict[str, set]:
+    """Internal helper for `_load_worker_vacations`."""
     if not path.exists():
         return {}
     data = yaml.safe_load(path.read_text()) or {}
@@ -70,12 +73,14 @@ def _load_worker_vacations(path: Path) -> dict[str, set]:
     return vacations
 
 def _load_schedule(path: Path) -> pd.DataFrame:
+    """Internal helper for `_load_schedule`."""
     df = pd.read_csv(path)
     df["date"] = pd.to_datetime(df["date"]).dt.date
     return df
 
 
 def _find_latest_windowed_schedule(out_dir: Path) -> Path | None:
+    """Internal helper for `_find_latest_windowed_schedule`."""
     candidates = []
     for path in out_dir.glob("schedule_*.csv"):
         if _WINDOW_SCHEDULE_RE.match(path.name):
@@ -86,6 +91,7 @@ def _find_latest_windowed_schedule(out_dir: Path) -> Path | None:
 
 
 def _default_schedule_path(raw_schedule: str | None) -> Path:
+    """Internal helper for `_default_schedule_path`."""
     if raw_schedule:
         return Path(raw_schedule)
     latest = _find_latest_windowed_schedule(Path("out"))
@@ -95,6 +101,7 @@ def _default_schedule_path(raw_schedule: str | None) -> Path:
 
 
 def _default_stats_path(schedule_path: Path, raw_stats: str | None) -> Path:
+    """Internal helper for `_default_stats_path`."""
     if raw_stats:
         return Path(raw_stats)
     m = _WINDOW_SCHEDULE_RE.match(schedule_path.name)
@@ -106,12 +113,14 @@ def _default_stats_path(schedule_path: Path, raw_stats: str | None) -> Path:
 
 
 def _default_excel_path(schedule_path: Path, raw_out: str | None) -> Path:
+    """Internal helper for `_default_excel_path`."""
     if raw_out:
         return Path(raw_out)
     return schedule_path.with_suffix(".xlsx")
 
 
 def _build_grid(schedule: pd.DataFrame, worker_order: list[str] | None = None) -> pd.DataFrame:
+    """Internal helper for `_build_grid`."""
     grid = schedule.pivot(index="worker", columns="date", values="shift").fillna("OFF")
     grid = grid.reindex(sorted(grid.columns), axis=1)
     if worker_order:
@@ -126,6 +135,7 @@ def _build_grid(schedule: pd.DataFrame, worker_order: list[str] | None = None) -
 
 
 def _collect_style_samples(ws):
+    """Internal helper for `_collect_style_samples`."""
     weekday_col = None
     weekend_col = None
     service_col = None
@@ -142,6 +152,7 @@ def _collect_style_samples(ws):
             break
 
     def style_from(row, col):
+        """Execute `style_from`."""
         if col is None:
             return None
         cell = ws.cell(row, col)
@@ -154,6 +165,7 @@ def _collect_style_samples(ws):
     }
 
 def _copy_col_style(ws, src_col: int, dst_col: int) -> None:
+    """Internal helper for `_copy_col_style`."""
     src_dim = ws.column_dimensions[get_column_letter(src_col)]
     dst_dim = ws.column_dimensions[get_column_letter(dst_col)]
     dst_dim.width = src_dim.width
@@ -172,6 +184,7 @@ def _copy_col_style(ws, src_col: int, dst_col: int) -> None:
 
 
 def _copy_row_style(ws, src_row: int, dst_row: int) -> None:
+    """Internal helper for `_copy_row_style`."""
     ws.row_dimensions[dst_row].height = ws.row_dimensions[src_row].height
     for col in range(1, ws.max_column + 1):
         src = ws.cell(src_row, col)
@@ -188,6 +201,7 @@ def _adjust_conditional_formatting(
     new_max_row: int,
     new_max_col: int,
 ) -> None:
+    """Internal helper for `_adjust_conditional_formatting`."""
     old_rules = dict(ws.conditional_formatting._cf_rules)
     if not old_rules:
         return
@@ -226,6 +240,7 @@ def _adjust_conditional_formatting(
 
 
 def _resize_sheet(ws, needed_rows: int, needed_cols: int) -> None:
+    """Internal helper for `_resize_sheet`."""
     old_max_row = ws.max_row
     old_max_col = ws.max_column
 
@@ -248,6 +263,7 @@ def _resize_sheet(ws, needed_rows: int, needed_cols: int) -> None:
 
 
 def _clear_values(ws, max_row: int, max_col: int) -> None:
+    """Internal helper for `_clear_values`."""
     for r in range(1, max_row + 1):
         for c in range(1, max_col + 1):
             cell = ws.cell(r, c)
@@ -263,6 +279,7 @@ def _write_grid(
     style_samples: dict,
     vacations_by_worker: dict[str, set],
 ) -> None:
+    """Internal helper for `_write_grid`."""
     dates = list(grid.columns)
     workers = list(grid.index)
 
@@ -322,6 +339,7 @@ def _write_grid(
 
 
 def _write_summary(ws, schedule: pd.DataFrame, stats: pd.DataFrame) -> None:
+    """Internal helper for `_write_summary`."""
     if schedule.empty:
         min_date = max_date = ""
     else:
@@ -342,6 +360,7 @@ def _write_summary(ws, schedule: pd.DataFrame, stats: pd.DataFrame) -> None:
 
 
 def _write_worker_stats(ws, stats: pd.DataFrame) -> None:
+    """Internal helper for `_write_worker_stats`."""
     if stats.empty:
         return
 
@@ -359,6 +378,7 @@ def _write_worker_stats(ws, stats: pd.DataFrame) -> None:
 
 
 def main() -> int:
+    """Run the command-line entrypoint."""
     parser = argparse.ArgumentParser(
         description="Convert schedule CSVs to a formatted Excel workbook using a template."
     )

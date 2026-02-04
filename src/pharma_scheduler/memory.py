@@ -22,12 +22,14 @@ AssignmentKey = Tuple[date, str]
 
 @dataclass(frozen=True)
 class SourceAssignment:
+    """Encapsulates `SourceAssignment` behavior and data."""
     shift: str
     source_path: Path
 
 
 @dataclass
 class MemoryApplyResult:
+    """Encapsulates `MemoryApplyResult` behavior and data."""
     hints_enabled: bool = False
     locks_enabled: bool = False
     hint_source_files: int = 0
@@ -45,6 +47,7 @@ class MemoryApplyResult:
 
 
 def _normalize_memory_config(memory_config: dict | None) -> dict:
+    """Internal helper for `_normalize_memory_config`."""
     if not memory_config:
         return {}
     if "memory" in memory_config and isinstance(memory_config["memory"], dict):
@@ -53,6 +56,7 @@ def _normalize_memory_config(memory_config: dict | None) -> dict:
 
 
 def _load_schedule_rows(path: Path) -> pd.DataFrame:
+    """Internal helper for `_load_schedule_rows`."""
     df = pd.read_csv(path)
     required = {"date", "worker", "shift"}
     missing = required - set(df.columns)
@@ -72,6 +76,7 @@ def _resolve_path(
     scenario_base_dir: Path,
     memory_config_path: Path | None,
 ) -> Path:
+    """Internal helper for `_resolve_path`."""
     p = Path(raw_path)
     if p.is_absolute():
         return p
@@ -83,6 +88,7 @@ def _resolve_path(
 
 
 def _window_for_source(path: Path, rows: pd.DataFrame) -> tuple[date, date]:
+    """Internal helper for `_window_for_source`."""
     parsed = parse_schedule_window(path)
     if parsed is not None:
         return parsed.report_start, parsed.report_end
@@ -99,6 +105,7 @@ def _collect_lock_assignments(
     report_start: date,
     report_end: date,
 ) -> tuple[Dict[AssignmentKey, SourceAssignment], int]:
+    """Internal helper for `_collect_lock_assignments`."""
     assignments: Dict[AssignmentKey, SourceAssignment] = {}
     candidates = 0
     for path in lock_paths:
@@ -134,6 +141,7 @@ def _rank_hint_sources(
     report_start: date,
     report_end: date,
 ) -> list[ReportWindowFile]:
+    """Internal helper for `_rank_hint_sources`."""
     candidates = []
     for item in find_schedule_window_files(out_dir):
         overlap = overlap_days(
@@ -157,6 +165,7 @@ def _collect_hint_assignments(
     report_end: date,
     worker_ids: list[str],
 ) -> tuple[Dict[AssignmentKey, SourceAssignment], int, dict[str, int]]:
+    """Internal helper for `_collect_hint_assignments`."""
     assignments: Dict[AssignmentKey, SourceAssignment] = {}
     candidates = 0
     selected_counts: dict[str, int] = {}
@@ -189,6 +198,7 @@ def _collect_hint_assignments(
 
 
 def _apply_lock_assignments(model, assignments: Dict[AssignmentKey, SourceAssignment]) -> tuple[int, int]:
+    """Internal helper for `_apply_lock_assignments`."""
     applied = 0
     invalid = 0
 
@@ -216,6 +226,7 @@ def _apply_hint_assignments(
     assignments: Dict[AssignmentKey, SourceAssignment],
     lock_assignments: Dict[AssignmentKey, SourceAssignment],
 ) -> tuple[int, int, int]:
+    """Internal helper for `_apply_hint_assignments`."""
     applied = 0
     skipped_locked = 0
     skipped_invalid = 0
@@ -258,6 +269,7 @@ def apply_memory(
     scenario_base_dir: str,
     memory_config_path: str | None = None,
 ) -> MemoryApplyResult:
+    """Execute `apply_memory`."""
     cfg = _normalize_memory_config(memory_config)
     result = MemoryApplyResult()
 

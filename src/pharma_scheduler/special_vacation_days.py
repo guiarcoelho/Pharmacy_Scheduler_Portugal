@@ -25,17 +25,20 @@ import yaml
 
 @dataclass(frozen=True)
 class SpecialPeriod:
+    """Encapsulates `SpecialPeriod` behavior and data."""
     start: date
     days: int
 
 
 @dataclass(frozen=True)
 class VacationPeriod:
+    """Encapsulates `VacationPeriod` behavior and data."""
     start: date
     days: int
 
 
 def _parse_special_days(data: dict) -> Dict[str, List[SpecialPeriod]]:
+    """Internal helper for `_parse_special_days`."""
     result: Dict[str, List[SpecialPeriod]] = {}
     for item in data.get("special_days", []) or []:
         name = item["name"]
@@ -57,6 +60,7 @@ def _parse_special_days(data: dict) -> Dict[str, List[SpecialPeriod]]:
 
 
 def load_special_days(path: str | Path) -> Dict[str, List[SpecialPeriod]]:
+    """Execute `load_special_days`."""
     path = Path(path)
     if not path.exists():
         return {}
@@ -66,10 +70,12 @@ def load_special_days(path: str | Path) -> Dict[str, List[SpecialPeriod]]:
 
 
 def load_special_days_data(data: dict) -> Dict[str, List[SpecialPeriod]]:
+    """Execute `load_special_days_data`."""
     return _parse_special_days(data or {})
 
 
 def expand_periods(periods: Iterable[SpecialPeriod | VacationPeriod]) -> Set[date]:
+    """Execute `expand_periods`."""
     days: Set[date] = set()
     for period in periods:
         for offset in range(period.days):
@@ -78,6 +84,7 @@ def expand_periods(periods: Iterable[SpecialPeriod | VacationPeriod]) -> Set[dat
 
 
 def _parse_worker_vacations(workers: Iterable[dict]) -> Dict[str, List[VacationPeriod]]:
+    """Internal helper for `_parse_worker_vacations`."""
     result: Dict[str, List[VacationPeriod]] = {}
     for worker in workers:
         periods: List[VacationPeriod] = []
@@ -147,6 +154,7 @@ def build_special_tag_index(
     dates: Iterable[date],
     specials: Dict[str, List[SpecialPeriod]],
 ) -> Dict[date, Set[str]]:
+    """Execute `build_special_tag_index`."""
     date_set = set(dates)
     index: Dict[date, Set[str]] = {d: set() for d in date_set}
 

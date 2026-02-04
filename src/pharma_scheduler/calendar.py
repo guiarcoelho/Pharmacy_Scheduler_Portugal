@@ -173,6 +173,7 @@ class Calendar:
         return len(self.dates)
 
     def __repr__(self) -> str:
+        """Return a string representation of this object."""
         return (
             f"Calendar(report={self.report_start} to {self.report_end}, "
             f"solve={self.solve_start} to {self.solve_end}, "

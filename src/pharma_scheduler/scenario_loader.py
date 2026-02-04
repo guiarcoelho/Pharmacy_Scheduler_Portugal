@@ -16,11 +16,13 @@ import yaml
 
 
 def _load_yaml(path: Path) -> dict:
+    """Internal helper for `_load_yaml`."""
     with path.open() as f:
         return yaml.safe_load(f) or {}
 
 
 def load_scenario(scenario_path: str) -> Dict[str, Any]:
+    """Execute `load_scenario`."""
     scenario_file = Path(scenario_path)
     if not scenario_file.exists():
         raise FileNotFoundError(f"Scenario file not found: {scenario_path}")
@@ -32,6 +34,7 @@ def load_scenario(scenario_path: str) -> Dict[str, Any]:
     resolved_paths: Dict[str, str] = {}
 
     def _resolve(key: str) -> dict:
+        """Internal helper for `_resolve`."""
         rel = scenario.get(key)
         if rel is None:
             return {}

@@ -19,6 +19,7 @@ class StatisticsCalculator:
     """Calculates scheduling statistics from solution."""
 
     def __init__(self, model: SchedulingModel):
+        """Initialize StatisticsCalculator."""
         self.model = model
         self.calendar = model.calendar
         # `SchedulingModel.workers` is a list of worker dicts in the new config-first
@@ -41,8 +42,9 @@ class StatisticsCalculator:
             total_minutes = report_schedule['paid_minutes'].sum()
 
             # Helper to sum minutes by filter
-            def sum_mins(
-                mask): return report_schedule[mask]['paid_minutes'].sum()
+            def sum_mins(mask):
+                """Return paid minutes where ``mask`` is true."""
+                return report_schedule[mask]['paid_minutes'].sum()
 
             weekend_minutes = sum_mins(report_schedule['is_weekend'])
             sat_minutes = sum_mins(report_schedule['is_saturday'])

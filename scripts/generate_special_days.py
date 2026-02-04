@@ -22,11 +22,13 @@ import yaml
 
 @dataclass(frozen=True)
 class SpecialPeriod:
+    """Encapsulates `SpecialPeriod` behavior and data."""
     start: str
     days: int
 
 
 def _compress_consecutive_dates(dates: Iterable[date]) -> List[SpecialPeriod]:
+    """Internal helper for `_compress_consecutive_dates`."""
     ordered = sorted(set(dates))
     if not ordered:
         return []
@@ -67,6 +69,7 @@ def _is_service_day(
     include_following_monday: bool,
 ) -> bool:
     # Service week is the configured week in the cycle (Mon-Sun)
+    """Internal helper for `_is_service_day`."""
     monday = d - timedelta(days=d.weekday())
     weeks_since_anchor = (monday - anchor_monday).days // 7
     cycle_position = (weeks_since_anchor % cycle_weeks) + 1
@@ -85,6 +88,7 @@ def _is_service_day(
 
 
 def main() -> int:
+    """Run the command-line entrypoint."""
     parser = argparse.ArgumentParser(
         description="Generate special-days list from service-cycle rules."
     )

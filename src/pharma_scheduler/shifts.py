@@ -57,6 +57,7 @@ class Shift:
         return end_min - start_min
 
     def __repr__(self) -> str:
+        """Return a string representation of this object."""
         return f"Shift({self.code}: {self.start}-{self.end}, {self.paid_minutes}min)"
 
 
@@ -112,6 +113,7 @@ class ShiftManager:
         return bool(evaluate(shift.allowed_when, {"day": day_context, "shift": self._shift_ctx(shift)}))
 
     def _shift_ctx(self, shift: Shift) -> dict:
+        """Internal helper for `_shift_ctx`."""
         return {
             "code": shift.code,
             "labels": sorted(shift.tags),
@@ -158,4 +160,5 @@ class ShiftManager:
         return forbidden
 
     def __repr__(self) -> str:
+        """Return a string representation of this object."""
         return f"ShiftManager({len(self.shifts)} shifts)"

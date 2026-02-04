@@ -17,6 +17,7 @@ sys.path.append(str(Path(__file__).parent / "src"))
 
 
 def _import_workflow():
+    """Internal helper for `_import_workflow`."""
     try:
         from pharma_scheduler.workflow import check_configuration, explain, solve
     except ImportError as e:
@@ -29,6 +30,7 @@ def _import_workflow():
 
 
 def parse_args() -> argparse.Namespace:
+    """Execute `parse_args`."""
     parser = argparse.ArgumentParser(
         description="Generate pharmacy schedules (recommended entrypoint: python run.py)"
     )
@@ -65,6 +67,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Run the command-line entrypoint."""
     args = parse_args()
     workflow = _import_workflow()
     if workflow is None:
