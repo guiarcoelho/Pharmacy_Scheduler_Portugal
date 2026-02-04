@@ -58,7 +58,7 @@ def parse_args() -> argparse.Namespace:
     mode.add_argument(
         "--explain",
         metavar="YYYY-MM-DD",
-        help="Explain schedule for a specific date (reads schedule.csv from --out)",
+        help="Explain schedule for a specific date (reads schedule_<start>_<end>.csv from --out)",
     )
 
     return parser.parse_args()
@@ -98,8 +98,8 @@ def main() -> int:
     print("\n" + "=" * 78)
     print("✅ WORKFLOW COMPLETE")
     print("=" * 78)
-    print(f"Schedule: {args.out}/schedule.csv")
-    print(f"Worker Stats: {args.out}/worker_stats.csv")
+    print(f"Schedule files: {args.out}/schedule_*.csv")
+    print(f"Worker stats files: {args.out}/worker_stats_*.csv")
     print("=" * 78)
     return 0
 

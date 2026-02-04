@@ -1,0 +1,13 @@
+memory:
+  # Global switch for all memory behavior.
+  enabled: true
+
+  # Automatic hints from existing out/schedule_<start>_<end>.csv files.
+  hints:
+    enabled: true
+
+  # Hard lock rows from explicit CSV paths.
+  locks:
+    enabled: false
+    files:
+      - path: locks/hard_lock.csv

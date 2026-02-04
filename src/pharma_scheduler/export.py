@@ -7,8 +7,15 @@ This module handles:
 """
 
 from pathlib import Path
+from datetime import date
 from typing import Optional
 import pandas as pd
+
+from .report_files import (
+    excel_filename,
+    schedule_filename,
+    worker_stats_filename,
+)
 
 
 class Exporter:
@@ -23,7 +30,14 @@ class Exporter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def export_csv(self, solution: pd.DataFrame, stats: pd.DataFrame):
+    def export_csv(
+        self,
+        solution: pd.DataFrame,
+        stats: pd.DataFrame,
+        *,
+        report_start: date,
+        report_end: date,
+    ) -> dict:
         """Export solution and statistics to CSV.
 
         Args:
@@ -38,16 +52,27 @@ class Exporter:
             'date', 'day_tags', 'shift', 'worker']].copy()
         schedule_df = schedule_df.sort_values(['date', 'shift', 'worker'])
 
-        schedule_path = self.output_dir / 'schedule.csv'
+        schedule_path = self.output_dir / schedule_filename(report_start, report_end)
         schedule_df.to_csv(schedule_path, index=False)
         print(f"✓ Wrote schedule to {schedule_path}")
 
         # Worker stats CSV
-        stats_path = self.output_dir / 'worker_stats.csv'
+        stats_path = self.output_dir / worker_stats_filename(report_start, report_end)
         stats.to_csv(stats_path, index=False)
         print(f"✓ Wrote worker statistics to {stats_path}")
+        return {
+            "schedule_csv": str(schedule_path),
+            "worker_stats_csv": str(stats_path),
+        }
 
-    def export_excel(self, solution: pd.DataFrame, stats: pd.DataFrame):
+    def export_excel(
+        self,
+        solution: pd.DataFrame,
+        stats: pd.DataFrame,
+        *,
+        report_start: date,
+        report_end: date,
+    ):
         """Export solution and statistics to Excel.
 
         Args:
@@ -60,7 +85,7 @@ class Exporter:
             print("⚠ openpyxl not installed, skipping Excel export")
             return
 
-        excel_path = self.output_dir / 'schedule.xlsx'
+        excel_path = self.output_dir / excel_filename(report_start, report_end)
 
         # Filter to report range
         report_solution = solution[solution['in_report_range']].copy()

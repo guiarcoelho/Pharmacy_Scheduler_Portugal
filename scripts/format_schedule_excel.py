@@ -3,7 +3,7 @@
 
 This script copies the layout, styles, and conditional formatting from a
 user-provided Excel template (e.g., out/Template.xlsx) and injects
-fresh data from schedule.csv + worker_stats.csv.
+fresh data from schedule_<start>_<end>.csv + worker_stats_<start>_<end>.csv.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 from datetime import date, datetime, timedelta
 from pathlib import Path
+import re
 
 import openpyxl
 import pandas as pd
@@ -20,6 +21,10 @@ from openpyxl.formatting.formatting import ConditionalFormatting
 from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import range_boundaries, get_column_letter
+
+_WINDOW_SCHEDULE_RE = re.compile(
+    r"^schedule_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})\.csv$"
+)
 
 
 
@@ -68,6 +73,42 @@ def _load_schedule(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
     df["date"] = pd.to_datetime(df["date"]).dt.date
     return df
+
+
+def _find_latest_windowed_schedule(out_dir: Path) -> Path | None:
+    candidates = []
+    for path in out_dir.glob("schedule_*.csv"):
+        if _WINDOW_SCHEDULE_RE.match(path.name):
+            candidates.append(path)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
+def _default_schedule_path(raw_schedule: str | None) -> Path:
+    if raw_schedule:
+        return Path(raw_schedule)
+    latest = _find_latest_windowed_schedule(Path("out"))
+    if latest is not None:
+        return latest
+    return Path("out/schedule.csv")
+
+
+def _default_stats_path(schedule_path: Path, raw_stats: str | None) -> Path:
+    if raw_stats:
+        return Path(raw_stats)
+    m = _WINDOW_SCHEDULE_RE.match(schedule_path.name)
+    if m:
+        return schedule_path.with_name(
+            f"worker_stats_{m.group(1)}_{m.group(2)}.csv"
+        )
+    return Path("out/worker_stats.csv")
+
+
+def _default_excel_path(schedule_path: Path, raw_out: str | None) -> Path:
+    if raw_out:
+        return Path(raw_out)
+    return schedule_path.with_suffix(".xlsx")
 
 
 def _build_grid(schedule: pd.DataFrame, worker_order: list[str] | None = None) -> pd.DataFrame:
@@ -323,13 +364,13 @@ def main() -> int:
     )
     parser.add_argument(
         "--schedule",
-        default="out/schedule.csv",
-        help="Path to schedule.csv (default: out/schedule.csv)",
+        default=None,
+        help="Path to schedule CSV (default: latest out/schedule_<start>_<end>.csv)",
     )
     parser.add_argument(
         "--stats",
-        default="out/worker_stats.csv",
-        help="Path to worker_stats.csv (default: out/worker_stats.csv)",
+        default=None,
+        help="Path to worker stats CSV (default: matching worker_stats_<start>_<end>.csv)",
     )
     parser.add_argument(
         "--template",
@@ -343,16 +384,16 @@ def main() -> int:
     )
     parser.add_argument(
         "--out",
-        default="out/schedule.xlsx",
-        help="Output Excel path (default: out/schedule.xlsx)",
+        default=None,
+        help="Output Excel path (default: same basename as --schedule with .xlsx)",
     )
     args = parser.parse_args()
 
-    schedule_path = Path(args.schedule)
-    stats_path = Path(args.stats)
+    schedule_path = _default_schedule_path(args.schedule)
+    stats_path = _default_stats_path(schedule_path, args.stats)
     template_path = Path(args.template)
     workers_path = Path(args.workers)
-    out_path = Path(args.out)
+    out_path = _default_excel_path(schedule_path, args.out)
 
     if not schedule_path.exists():
         raise FileNotFoundError(f"Schedule CSV not found: {schedule_path}")

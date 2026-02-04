@@ -11,7 +11,9 @@ from pathlib import Path
 
 from .calendar import Calendar
 from .export import Exporter
+from .memory import apply_memory
 from .model import SchedulingModel
+from .report_files import find_schedule_window_files
 from .scenario_loader import load_scenario
 from .shifts import ShiftManager
 from .solver import SchedulingSolver
@@ -193,6 +195,44 @@ def solve(
     )
     model.build()
 
+    memory_result = apply_memory(
+        model=model,
+        memory_config=config.get("memory", {}),
+        report_start=report_start,
+        report_end=report_end,
+        out_dir=out_dir,
+        scenario_base_dir=config.get("resolved_paths", {}).get(
+            "scenario_root", Path(config_path).parent
+        ),
+        memory_config_path=config.get("resolved_paths", {}).get("memory"),
+    )
+    if memory_result.hints_enabled or memory_result.locks_enabled:
+        print("\nMemory:")
+        if memory_result.hints_enabled:
+            print(
+                "  Hints: "
+                f"sources={memory_result.hint_source_files}, "
+                f"candidates={memory_result.hint_candidates}, "
+                f"applied={memory_result.hints_applied}, "
+                f"skipped_locked={memory_result.hints_skipped_locked}, "
+                f"skipped_invalid={memory_result.hints_skipped_invalid}"
+            )
+            if memory_result.hint_source_order:
+                print("    Source rank:")
+                for idx, name in enumerate(memory_result.hint_source_order, start=1):
+                    selected = 0
+                    if memory_result.hint_selected_counts:
+                        selected = memory_result.hint_selected_counts.get(name, 0)
+                    print(f"      {idx}. {name} (selected_rows={selected})")
+        if memory_result.locks_enabled:
+            print(
+                "  Locks: "
+                f"sources={memory_result.lock_source_files}, "
+                f"candidates={memory_result.lock_candidates}, "
+                f"applied={memory_result.locks_applied}, "
+                f"invalid={memory_result.lock_invalid}"
+            )
+
     solver = SchedulingSolver(model, config.get("solver", {}).get("solver", {}))
     success = solver.solve()
     if not success:
@@ -204,7 +244,12 @@ def solve(
     objective = solver.get_objective_value()
 
     exporter = Exporter(out_dir)
-    exporter.export_csv(solution, stats)
+    outputs = exporter.export_csv(
+        solution,
+        stats,
+        report_start=report_start,
+        report_end=report_end,
+    )
 
 
     if verbose:
@@ -212,7 +257,7 @@ def solve(
 
     exporter.print_summary(solution, stats, objective)
 
-    print("\n✓ Schedule generation complete!")
+    print(f"\n✓ Schedule generation complete! ({outputs['schedule_csv']})")
     return 0
 
 
@@ -225,7 +270,10 @@ def explain(*, config_path: str, out_dir: str, target_date: str) -> int:
     try:
         day = date.fromisoformat(target_date)
 
-        schedule_file = Path(out_dir) / "schedule.csv"
+        schedule_file = _resolve_schedule_file_for_explain(
+            out_dir=Path(out_dir),
+            target_date=day,
+        )
         if not schedule_file.exists():
             print(f"\n✗ Error: Schedule file not found at {schedule_file}")
             print("  Run `python run.py` first (or generate a schedule into the same --out).")
@@ -278,3 +326,17 @@ def explain(*, config_path: str, out_dir: str, target_date: str) -> int:
     except Exception as e:
         print(f"\n✗ ERROR: {e}")
         return 1
+
+
+def _resolve_schedule_file_for_explain(*, out_dir: Path, target_date: date) -> Path:
+    files = find_schedule_window_files(out_dir)
+    if files:
+        covering = [
+            f
+            for f in files
+            if f.report_start <= target_date <= f.report_end
+        ]
+        if covering:
+            return max(covering, key=lambda f: f.path.stat().st_mtime).path
+        return max(files, key=lambda f: f.path.stat().st_mtime).path
+    return out_dir / "schedule.csv"

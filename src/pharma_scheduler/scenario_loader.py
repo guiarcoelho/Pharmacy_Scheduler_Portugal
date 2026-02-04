@@ -29,11 +29,14 @@ def load_scenario(scenario_path: str) -> Dict[str, Any]:
     scenario = root.get("scenario", root)
 
     base_dir = scenario_file.parent
+    resolved_paths: Dict[str, str] = {}
+
     def _resolve(key: str) -> dict:
         rel = scenario.get(key)
         if rel is None:
             return {}
         path = (base_dir / rel).resolve()
+        resolved_paths[key] = str(path)
         return _load_yaml(path)
 
     data = {
@@ -43,6 +46,9 @@ def load_scenario(scenario_path: str) -> Dict[str, Any]:
         "constraints": _resolve("constraints"),
         "special_days": _resolve("special_days"),
         "solver": _resolve("solver"),
+        "memory": _resolve("memory"),
     }
     data["meta"] = scenario
+    resolved_paths["scenario_root"] = str(base_dir.resolve())
+    data["resolved_paths"] = resolved_paths
     return data

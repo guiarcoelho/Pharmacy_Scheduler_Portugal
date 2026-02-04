@@ -7,6 +7,7 @@ The Python code acts mainly as a **processing layer**:
 - Builds a calendar (dates + holidays + “special day” tags)
 - Builds decision variables (who can work what shift, on what day)
 - Interprets the rulebook to create solver constraints + objective terms
+- Optionally applies memory (hints + hard locks)
 - Runs the OR-Tools CP-SAT solver and exports results
 
 The goal is that you can reuse the same code for a different context (factory, store, etc.) by swapping the scenario configs.
@@ -87,6 +88,25 @@ That tag can then be referenced in JSONLogic (`day.tags`) and in rulebook filter
 
 - `config/scenario.yaml`: scenario “manifest” that points to the scenario folder
 - `config/scenarios/pharmacy_pt/`: concrete example scenario (workers, shifts, calendar, special days, solver, rulebook)
+
+## 6.1) Output naming and memory reuse
+
+The main workflow writes report-window-specific outputs:
+
+- `out/schedule_<YYYY-MM-DD>_<YYYY-MM-DD>.csv`
+- `out/worker_stats_<YYYY-MM-DD>_<YYYY-MM-DD>.csv`
+
+This naming is used by memory hints:
+
+- Hints scan existing `schedule_<start>_<end>.csv` files in `out/`.
+- Sources are ranked by:
+  1) overlap days with current report window (desc),
+  2) source window size (desc),
+  3) file recency (desc).
+- Hints are applied with `AddHint` (guidance only, not hard constraints).
+
+Hard locks come only from explicit files listed in `memory.yaml` and are applied
+as hard constraints; locks override hints on overlapping `(date, worker)` cells.
 
 ## 7) Rulebook reference (constraints.yaml)
 
@@ -260,7 +280,7 @@ Rules are evaluated with a context dictionary that may include:
 Defines where each scenario file lives. Paths are relative to this file.
 
 Key fields:
-- `calendar`, `special_days`, `workers`, `shifts`, `constraints`, `solver`
+- `calendar`, `special_days`, `workers`, `shifts`, `constraints`, `solver`, `memory`
 
 ### `calendar.yaml`
 Defines the report horizon and holiday settings.
@@ -356,3 +376,14 @@ Controls CP-SAT runtime behavior:
 - `num_search_workers`
 - `log_search_progress`
 - `print_response_stats`
+
+### `memory.yaml`
+Controls optional memory behavior:
+
+- `enabled`: global on/off switch.
+- `hints.enabled`: reuse overlap from windowed schedule outputs as CP-SAT hints.
+- `locks.enabled`: enforce explicit lock CSVs.
+- `locks.files`: list of lock file paths.
+
+Lock CSV schema:
+- `date` (ISO date), `worker`, `shift` (shift code or `OFF`).

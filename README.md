@@ -46,7 +46,8 @@ Everything is pre-configured for a demo run. Just execute:
 python run.py
 ```
 
-Check the `out/` folder for `schedule.csv` and `worker_stats.csv`.
+Check the `out/` folder for `schedule_<start>_<end>.csv` and
+`worker_stats_<start>_<end>.csv`.
 
 Optional helpers:
 
@@ -54,14 +55,14 @@ Optional helpers:
 # Validate config (no solving)
 python run.py --check
 
-# Explain who works on a specific day (requires out/schedule.csv)
+# Explain who works on a specific day (reads the newest matching windowed schedule)
 python run.py --explain 2026-02-15
 
 # Convert CSVs to formatted Excel using a template
+# (defaults to latest schedule_<start>_<end>.csv and writes matching .xlsx)
 python3 scripts/format_schedule_excel.py \
   --template out/Template.xlsx \
-  --workers config/scenarios/pharmacy_pt/workers.yaml \
-  --out out/schedule.xlsx
+  --workers config/scenarios/pharmacy_pt/workers.yaml
 ```
 
 ---
@@ -77,9 +78,41 @@ All scheduling logic is controlled via the scenario files referenced from
 - `shifts.yaml`: shift times, coverage min/max, and JSONLogic `allowed_when`
 - `constraints.yaml`: primitive rulebook of hard/soft constraints (JSONLogic filters + fairness_items)
 - `solver.yaml`: solver limits and logging
+- `memory.yaml`: optional hint/lock memory settings
 
 Vacations are supported per worker in `workers.yaml` as `{start, days}` ranges
 (inclusive), and are treated as hard unavailability.
+
+### Memory (optional)
+
+`memory.yaml` supports two independent modes:
+
+- `hints.enabled`: auto-reuse overlapping `out/schedule_<start>_<end>.csv` files as CP-SAT hints.
+- `locks.enabled`: enforce explicit lock CSV files declared in `locks.files`.
+
+Hints are ranked by overlap size (desc), then source window size (desc), then file recency.
+Locks always take precedence over hints.
+
+Minimal example:
+
+```yaml
+memory:
+  enabled: true
+  hints:
+    enabled: true
+  locks:
+    enabled: true
+    files:
+      - path: locks/my_hard_locks.csv
+```
+
+Hard-lock CSV format:
+
+```csv
+date,worker,shift
+2026-03-10,A,M
+2026-03-11,B,OFF
+```
 
 The main workflow exports CSV only. Use `scripts/format_schedule_excel.py` to
 generate the formatted Excel workbook from the CSVs.

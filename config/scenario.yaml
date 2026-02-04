@@ -12,3 +12,4 @@ scenario:
   shifts: scenarios/pharmacy_pt/shifts.yaml
   constraints: scenarios/pharmacy_pt/constraints.yaml
   solver: scenarios/pharmacy_pt/solver.yaml
+  memory: scenarios/pharmacy_pt/memory.yaml
